@@ -1,0 +1,46 @@
+services:
+
+  # ── Single-node (local device) ──────────────────────────────────────────────
+  foundation-model-cpu:
+    build:
+      context: .
+      target: cpu
+    environment:
+      - DEVICE=cpu
+      - DEMO_MODE=single
+
+  # ── Federated learning coordinator ─────────────────────────────────────────
+  foundation-model-federated:
+    build:
+      context: .
+      target: cpu
+    environment:
+      - DEVICE=cpu
+      - DEMO_MODE=federated
+
+  # ── P2P gossip network ──────────────────────────────────────────────────────
+  foundation-model-p2p:
+    build:
+      context: .
+      target: cpu
+    environment:
+      - DEVICE=cpu
+      - DEMO_MODE=p2p
+
+  # ── GPU / cloud VM (requires NVIDIA runtime) ────────────────────────────────
+  foundation-model-gpu:
+    build:
+      context: .
+      target: gpu
+      args:
+        TORCH_EXTRA: "--index-url https://download.pytorch.org/whl/cu121"
+    environment:
+      - DEVICE=cuda
+      - DEMO_MODE=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
