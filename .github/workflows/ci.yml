@@ -1,0 +1,44 @@
+name: CI
+
+# Runs the suite on every pull request and push to main. torch is the one
+# heavy dependency; the CPU wheel from PyTorch's own index keeps the install
+# to what the tests need (no CUDA stack), and pip caching keeps repeat runs
+# fast. Single Python version deliberately - the matrix cost is dominated by
+# torch, and 3.12 is the version the suite is developed against.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (Python 3.12, CPU torch)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev]"
+
+      - name: Run tests
+        # --cov-fail-under is a ratchet at the measured baseline (88% on
+        # 2026-08-24): raise it with the tests that earn it, never lower it.
+        run: pytest --cov=foundation_model --cov-fail-under=88
