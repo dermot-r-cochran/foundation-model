@@ -38,3 +38,31 @@ The public API is re-exported flat from `foundation_model/__init__.py`.
 
 - Numerical test assertions use deliberate tolerances (`pytest.approx` with a stated rationale), never exact float equality — a BLAS change can break the latter.
 - `README.md` carries worked usage examples for every capability; keep its capability table and `TestingStrategy.md`'s test table in sync with any new module.
+
+## Related repositories
+
+The map of Dermot's public repositories and what crosses between them is
+`RELATED-REPOSITORIES.md` in `dermot-r-cochran/star-rangers`; this section
+names only this repository's own neighbours (added 2026-09-29 at his
+direction). Nothing below shares code or data with this repository; what is
+shared is stated exactly.
+
+- **`dermot-r-cochran/Voting`** is a resemblance, not a relationship: the
+  expertise-weighted voting in `voting.py` and that Rust proportional
+  allocation crate share a word and nothing else. Don't look there for this
+  module's semantics or vice versa.
+- **`dermot-r-cochran/swarm`** (EPISTEME) and **`dermot-r-cochran/careful-memory`**
+  are the account's other repositories about belief and uncertainty as
+  primitives; this one quantifies its own uncertainty inside a model rather
+  than keeping beliefs as objects. Neighbouring ideas, independent code.
+- **Siblings by convention:** `careful-memory`, `world-model`, `foundation-model`,
+  `shadow-architect`, `visual-llm`, `swarm`, `Voting` and
+  `architecture-definition-model` all carry a `TestingStrategy.md` that keeps
+  testing mechanics apart from the repository's rules; six run CI coverage as a
+  ratchet at the measured baseline (`swarm`, `careful-memory`, `world-model`,
+  `foundation-model`, `shadow-architect`, `visual-llm`); five keep
+  architecture decision records with a guard test each (`swarm`,
+  `careful-memory`, `world-model`, `shadow-architect`, the ADM). When a
+  convention here needs changing, those are the reference for how it is done
+  in the account, and a change to the convention itself is worth landing in
+  all of them or in none.
