@@ -6,7 +6,7 @@ peer-to-peer, distributed, and federated learning.
 
 ## Overview
 
-The framework provides five interlocking capabilities:
+The framework provides six interlocking capabilities:
 
 | Capability | Key idea |
 |---|---|
@@ -165,6 +165,9 @@ for fl_round in range(num_rounds):
 No central server.  Peers exchange parameters with random neighbours each
 round.  With `expertise_weighted=True`, the exchange is biased toward the
 better-performing peer — preventing knowledge dilution by many novices.
+In peer-to-peer mode a peer's expertise is measured by its most recent
+training-batch loss, which `Peer.train_step()` stores as `val_loss` as a
+stand-in for validation loss; no held-out set is evaluated.
 
 ```python
 from foundation_model.p2p import P2PNetwork
@@ -263,4 +266,4 @@ pytest
 
 ## License
 
-Eclipse Public License v2.0 — see [LICENSE](LICENSE).
+MIT License — see [LICENSE](LICENSE).
