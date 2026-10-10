@@ -8,14 +8,21 @@ peer-to-peer, distributed, and federated learning.
 
 The framework provides six interlocking capabilities:
 
-| Capability | Key idea |
-|---|---|
-| **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know |
-| **Experience-driven learning** | Priority replay buffer with representative sub-sampling |
-| **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection |
-| **Federated learning** | FedAvg *and* expertise-weighted aggregation |
-| **P2P distributed learning** | Gossip averaging with expertise weighting |
-| **Expertise-weighted voting** | Prevents poorly-performing majorities from overriding expert minorities |
+| Capability | Key idea | Proved by |
+|---|---|---|
+| **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_model.py::test_predict_with_uncertainty_shapes`, `tests/test_uncertainty.py::test_epistemic_non_negative`; that it is higher out of distribution has no test yet |
+| **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
+| **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection | `tests/test_sampling.py::test_stratified_selects_from_all_strata`, `::test_diversity_maximises_spread`, `::test_uncertainty_returns_top_k` |
+| **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_fedavg_round`, `::test_server_expertise_round` |
+| **P2P distributed learning** | Gossip averaging with expertise weighting | `tests/test_p2p.py::test_peer_gossip_expertise_weighted`, `::test_gossip_convergence` |
+| **Expertise-weighted voting** | Prevents poorly-performing majorities from overriding expert minorities | `tests/test_voting.py::test_expert_outvotes_majority`, `::test_aggregate_closer_to_expert` |
+
+Every capability row and bullet in this README names the test that proves it
+(file and test name), or says it has no test yet (the README-proof convention,
+10 October 2026). `.github/scripts/check_docs.py`, run in CI, fails if a cited
+test does not exist, a relative link resolves to nothing, a Markdown file has a
+second front-matter block, or a count or table here disagrees with the code: the
+six capabilities, the four samplers, and the scale presets' dimensions.
 
 ---
 
@@ -46,12 +53,16 @@ estimate uncertainty.
 
 ## Scale Presets
 
-| Preset | d\_model | Layers | Heads | d\_ff | Typical target |
-|--------|---------|--------|-------|------|----------------|
-| `tiny`  | 64  | 2  | 2  | 256  | Unit tests / CI |
-| `small` | 256 | 4  | 4  | 1024 | Laptop / edge device |
-| `base`  | 512 | 6  | 8  | 2048 | Mid-range cloud VM |
-| `large` | 1024| 12 | 16 | 4096 | High-end cloud VM |
+| Preset | d\_model | Layers | Heads | d\_ff | Typical target | Proved by |
+|--------|---------|--------|-------|------|----------------|-----------|
+| `tiny`  | 64  | 2  | 2  | 256  | Unit tests / CI | `tests/test_model.py::test_all_presets_instantiate` |
+| `small` | 256 | 4  | 4  | 1024 | Laptop / edge device | `tests/test_model.py::test_all_presets_instantiate` |
+| `base`  | 512 | 6  | 8  | 2048 | Mid-range cloud VM | `tests/test_model.py::test_all_presets_instantiate` |
+| `large` | 1024| 12 | 16 | 4096 | High-end cloud VM | `tests/test_model.py::test_all_presets_instantiate` |
+
+The test proves each preset builds a model; the dimensions are held to
+`foundation_model/config.py` by the doc check; the typical targets are guidance
+and have no test.
 
 ---
 
@@ -64,8 +75,13 @@ Total predictive uncertainty is decomposed into:
 
 - **Epistemic** (model uncertainty) = mutual information between weights and
   predictions — high for out-of-distribution inputs.
+  (`tests/test_uncertainty.py::test_epistemic_uncertainty_shape` and
+  `::test_epistemic_non_negative`; that it is high out of distribution has no
+  test yet.)
 - **Aleatoric** (data uncertainty) = mean entropy of individual MC
   predictions — irreducible noise inherent in the data.
+  (`tests/test_uncertainty.py::test_aleatoric_uncertainty_shape`, shape only;
+  that its value is the mean per-sample entropy has no test yet.)
 
 ```python
 from foundation_model import FoundationModel, FoundationModelConfig, compute_uncertainty
@@ -103,12 +119,12 @@ for input_ids, labels in my_dataloader:
 
 Four samplers prevent large or skewed datasets from dominating training:
 
-| Sampler | Strategy |
-|---|---|
-| `StratifiedSampler` | Quantile buckets — equal quota from every priority tier |
-| `DiversitySampler` | Greedy k-centers — maximise minimum embedding distance |
-| `UncertaintySampler` | Top-k epistemic uncertainty — most informative examples |
-| `RepresentativeSampler` | Combines diversity + uncertainty in one pass |
+| Sampler | Strategy | Proved by |
+|---|---|---|
+| `StratifiedSampler` | Quantile buckets — equal quota from every priority tier | `tests/test_sampling.py::test_stratified_selects_from_all_strata` |
+| `DiversitySampler` | Greedy k-centers — maximise minimum embedding distance | `tests/test_sampling.py::test_diversity_maximises_spread` |
+| `UncertaintySampler` | Top-k epistemic uncertainty — most informative examples | `tests/test_sampling.py::test_uncertainty_returns_top_k` |
+| `RepresentativeSampler` | Combines diversity + uncertainty in one pass | `tests/test_sampling.py::test_representative_returns_correct_count`, `::test_representative_diversity_fraction_zero` |
 
 ```python
 from foundation_model import StratifiedSampler, RepresentativeSampler
@@ -129,16 +145,17 @@ chosen = rep_sampler.sample(embeddings=emb,       # [N, D]
 ```
 
 Federated clients automatically sub-sample large local datasets before
-local training when `max_samples` is passed to `FederatedClient.fit()`.
+local training when `max_samples` is passed to `FederatedClient.fit()`
+(`tests/test_federated.py::test_client_fit_with_max_samples_subsamples`).
 
 ### 4 · Federated Learning
 
 Two aggregation strategies are available:
 
-| Strategy | Description |
-|---|---|
-| `"fedavg"` | Classic FedAvg — weight by dataset size |
-| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming |
+| Strategy | Description | Proved by |
+|---|---|---|
+| `"fedavg"` | Classic FedAvg — weight by dataset size | `tests/test_federated.py::test_fedavg_unequal_weights`, `::test_server_fedavg_round` |
+| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming | `tests/test_federated.py::test_server_expertise_round`; trimming runs in `tests/test_voting.py::test_aggregate_with_trim_fraction`, which checks only that it completes, so its robustness has no test yet |
 
 ```python
 from foundation_model.federated import FederatedClient, FederatedConfig, FederatedServer
