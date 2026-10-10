@@ -42,3 +42,23 @@ jobs:
         # --cov-fail-under is a ratchet at the measured baseline (88% on
         # 2026-08-24): raise it with the tests that earn it, never lower it.
         run: pytest --cov=foundation_model --cov-fail-under=88
+
+  docs:
+    # Standard library only, so no torch and nothing installed. Fails on a
+    # README test citation that names no test, a broken relative link, a
+    # second front-matter block, and a README count or table that disagrees
+    # with the code. Added 2026-10-10 with the README-proof convention; see
+    # TestingStrategy.md.
+    name: docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Doc check
+        run: python .github/scripts/check_docs.py

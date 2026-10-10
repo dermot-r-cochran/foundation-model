@@ -25,6 +25,23 @@ passing locally on 2026-08-24 (an earlier revision of this document recorded
 the suite as not-yet-executed; torch was installed the same day and the run
 confirmed green, at 88% coverage).
 
+## The doc check (`.github/scripts/check_docs.py`)
+
+Added 2026-10-10 with the README-proof convention: every capability row and
+bullet in the README names the test that proves it, or says "no test yet".
+The script is standard library only and runs as its own `docs` job in CI, so
+it needs no torch. It fails on a README citation (`tests/<file>.py::<name>`)
+whose file or name does not exist, a relative link in the README or under
+`docs/` that resolves to nothing, a front-matter block below the top of any
+Markdown file, and a README count or table that disagrees with the code: the
+capability count against the overview table, the samplers against the
+`*Sampler` classes in `sampling.py`, the scale presets against
+`config.py`. What it cannot check is that a cited test proves the claim
+beside it; that stays a reviewer's question, and the README says "no test
+yet" wherever a test only runs the code without checking the claim (the
+out-of-distribution behaviour of epistemic uncertainty, the value of the
+aleatoric term, the robustness of trimmed aggregation).
+
 ## Known gaps (candidates for next)
 
 - ~~No CI~~ — **closed 2026-08-24**: `.github/workflows/ci.yml` installs the
