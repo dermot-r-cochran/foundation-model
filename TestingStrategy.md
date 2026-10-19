@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 87 tests across 8 files)
+## The suite (`tests/`, pytest — 92 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -18,12 +18,26 @@ suite doubles as a checklist of what the README promises:
 | `test_trainer.py` | the training loop |
 | `test_federated.py` | federated training behaviour |
 | `test_p2p.py` | peer-to-peer coordination |
+| `test_main.py` | the demo entry point `python -m foundation_model` that the Docker targets run — each `DEMO_MODE` in-process on CPU, and `DEVICE=cuda` falling back to CPU |
 
 Run: `pytest` (config in `pyproject.toml`: `testpaths = ["tests"]`), with
 `torch>=2.0` installed — the one heavy dependency. All 87 tests verified
 passing locally on 2026-08-24 (an earlier revision of this document recorded
 the suite as not-yet-executed; torch was installed the same day and the run
-confirmed green, at 88% coverage).
+confirmed green, at 88% coverage). The five `test_main.py` tests were added
+on 2026-10-19 and the measured total rose to 97.91%.
+
+## The coverage ratchet, exactly
+
+CI runs `pytest --cov=foundation_model --cov-fail-under=97`. pytest-cov
+compares the total against that figure at coverage's report precision,
+which defaults to 0 decimals: a total of 87.62% rounded to 88 and passed the
+old ratchet of 88 for the whole of September and early October 2026, while
+the same run printed `FAIL Required test coverage of 88% not reached`. The
+CI job was green and its log said FAIL. `[tool.coverage.report] precision =
+2` in `pyproject.toml` makes the comparison exact (97.91 against 97.92 now
+fails, verified locally), and the ratchet is set at the floor of the measured
+total, so it can only be passed by coverage that is really there.
 
 ## The doc check (`.github/scripts/check_docs.py`)
 
@@ -53,7 +67,11 @@ aleatoric term, the robustness of trimmed aggregation).
   and asserts identical output pins it cheaply.
 - The Docker path (`Dockerfile`, `docker-compose.yml`) is unexercised by any
   test; a CI job that at least builds the image would catch dependency rot.
-- ~~Coverage is unmeasured~~ — the CI ratchet above holds it at ≥88%.
+  What the image *runs* is covered since 2026-10-19 (`test_main.py` runs
+  every `DEMO_MODE` in-process), so what remains untested is the build and
+  the `cuda` branch on a GPU host.
+- ~~Coverage is unmeasured~~ — the CI ratchet above holds it at ≥97%,
+  compared exactly (see "The coverage ratchet, exactly").
 
 ## Extending
 

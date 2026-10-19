@@ -21,3 +21,10 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.report]
+# pytest-cov compares the total with --cov-fail-under at this precision
+# (coverage's should_fail_under). At the default 0 a total of 87.62% rounds
+# to 88 and passes a ratchet of 88 while the summary prints FAIL; at 2 the
+# comparison is exact. Found 2026-10-19.
+precision = 2

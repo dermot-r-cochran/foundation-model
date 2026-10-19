@@ -238,6 +238,13 @@ pip install -e ".[dev]"
 
 ## Deployment
 
+Every target runs the demo entry point `python -m foundation_model`, which
+`DEMO_MODE` steers (`single`, `federated`, `p2p`, or the default `all`); each
+mode is run in-process by `tests/test_main.py::test_single_mode_reports_both_uncertainties`,
+`::test_federated_mode_runs_both_strategies`, `::test_p2p_mode_runs_uniform_and_expertise`
+and `::test_all_mode_is_the_default_and_runs_every_demo`. The image build
+itself has no test yet.
+
 ### Local device (CPU)
 
 ```bash
