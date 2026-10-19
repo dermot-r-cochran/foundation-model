@@ -40,8 +40,12 @@ jobs:
 
       - name: Run tests
         # --cov-fail-under is a ratchet at the measured baseline (88% on
-        # 2026-08-24): raise it with the tests that earn it, never lower it.
-        run: pytest --cov=foundation_model --cov-fail-under=88
+        # 2026-08-24; 97 on 2026-10-19, measured 97.91%, when the demo entry
+        # point got its tests): raise it with the tests that earn it, never
+        # lower it. The comparison is exact to two decimals
+        # ([tool.coverage.report] precision in pyproject.toml); before that,
+        # 87.62% rounded to 88 and passed while the summary printed FAIL.
+        run: pytest --cov=foundation_model --cov-fail-under=97
 
   docs:
     # Standard library only, so no torch and nothing installed. Fails on a
