@@ -294,6 +294,13 @@ pytest
 
 ---
 
+## Related
+
+- [swarm](https://github.com/dermot-r-cochran/swarm) (EPISTEME) and [careful-memory](https://github.com/dermot-r-cochran/careful-memory) are the account's other repositories about belief and uncertainty as primitives; they keep beliefs as objects, where this model quantifies its own uncertainty. Neighbouring ideas, independent code.
+- How these and the author's other public repositories relate is kept in one map: [RELATED-REPOSITORIES.md](https://github.com/dermot-r-cochran/star-rangers/blob/main/RELATED-REPOSITORIES.md).
+
+---
+
 ## License
 
 MIT License — see [LICENSE](LICENSE).
