@@ -113,6 +113,84 @@ def test_aggregate_with_trim_fraction(tiny_base: dict) -> None:
     assert set(result.keys()) == set(tiny_base.keys())
 
 
+# Trimming is by expertise weight, not by parameter values (Dermot's ruling,
+# 30 October 2026, "Accept all four": keep the existing behaviour and test it).
+# The two tests below prove what that buys and state what it does not.
+
+
+def _shifted(base: dict, delta: float) -> dict:
+    return {k: v.float() + delta for k, v in base.items()}
+
+
+def test_trim_excludes_inflated_reputation_and_worst_loss(tiny_base: dict) -> None:
+    """Trimming drops the highest- and lowest-weighted contributors.
+
+    Three honest contributors send the same small update at equal weight. A
+    fourth has an artificially inflated reputation and sends a poisoned
+    update; a fifth has a very poor validation loss and sends another. With
+    trim_fraction=0.2 of five contributors, one is dropped from each tail of
+    the weight order, so the aggregate is the honest update. Without trimming
+    the inflated contributor dominates, which is the attack the trim guards.
+    """
+    honest, poisoned_high, poisoned_low = 0.1, 100.0, -100.0
+
+    def run(trim_fraction: float) -> dict:
+        tracker = ReputationTracker()
+        tracker.register(3).reputation = 1000.0  # inflated reputation
+        agg = ExpertiseWeightedAggregator(tracker, trim_fraction=trim_fraction)
+        return agg.aggregate(
+            tiny_base,
+            [
+                (0, _shifted(tiny_base, honest), 10, 1.0),
+                (1, _shifted(tiny_base, honest), 10, 1.0),
+                (2, _shifted(tiny_base, honest), 10, 1.0),
+                (3, _shifted(tiny_base, poisoned_high), 10, 1.0),
+                (4, _shifted(tiny_base, poisoned_low), 10, 50.0),  # worst loss
+            ],
+        )
+
+    trimmed = run(0.2)
+    for key, value in tiny_base.items():
+        # Three equal weights normalised to 1/3 each and summed in float32:
+        # rounding is ~1e-7 of the parameter's magnitude, so 1e-5 is generous
+        # and still a million times smaller than the poisoned shift.
+        assert torch.allclose(trimmed[key], value.float() + honest, rtol=0.0, atol=1e-5)
+
+    untrimmed = run(0.0)
+    first_key = next(iter(tiny_base))
+    shift = (untrimmed[first_key] - tiny_base[first_key].float()).mean().item()
+    assert shift > 90.0  # weight 1000 against 3 + 0.02: the poison wins
+
+
+def test_trim_is_by_weight_not_by_parameter_value(tiny_base: dict) -> None:
+    """A poisoned update at middling weight survives the trim.
+
+    This is the limit of trimming by weight, recorded so it is not mistaken
+    for value-based robustness (a coordinate-wise trimmed mean would drop the
+    outlying values; this aggregator does not look at them). Five equal-loss
+    contributors are given distinct reputations; the one with the median
+    weight sends the poisoned update and is kept, while the extremes are
+    dropped.
+    """
+    tracker = ReputationTracker()
+    for cid, reputation in enumerate([0.5, 0.8, 1.0, 1.2, 1.5]):
+        tracker.register(cid).reputation = reputation
+    agg = ExpertiseWeightedAggregator(tracker, trim_fraction=0.2)
+    updates = [
+        (cid, _shifted(tiny_base, 100.0 if cid == 2 else 0.1), 10, 1.0)
+        for cid in range(5)
+    ]
+    result = agg.aggregate(tiny_base, updates)
+
+    # Kept: reputations 0.8, 1.0 (poisoned), 1.2 -> weights in that ratio.
+    expected_shift = (0.8 * 0.1 + 1.0 * 100.0 + 1.2 * 0.1) / 3.0
+    first_key = next(iter(tiny_base))
+    shift = (result[first_key] - tiny_base[first_key].float()).mean().item()
+    # Float32 sums of terms near 100: 1e-3 absolute is well inside the
+    # ~33 the poisoned contributor moves the mean.
+    assert shift == pytest.approx(expected_shift, abs=1e-3)
+
+
 def test_reputation_updated_after_aggregation(tiny_base: dict) -> None:
     tracker = ReputationTracker()
     agg = ExpertiseWeightedAggregator(reputation_tracker=tracker)
