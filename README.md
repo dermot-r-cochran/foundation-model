@@ -160,7 +160,7 @@ Two aggregation strategies are available:
 | Strategy | Description | Proved by |
 |---|---|---|
 | `"fedavg"` | Classic FedAvg — weight by dataset size | `tests/test_federated.py::test_fedavg_unequal_weights`, `::test_server_fedavg_round` |
-| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming | `tests/test_federated.py::test_server_expertise_round`; trimming runs in `tests/test_voting.py::test_aggregate_with_trim_fraction`, which checks only that it completes, so its robustness has no test yet |
+| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming, by expertise weight rather than by parameter values | `tests/test_federated.py::test_server_expertise_round`; the trim drops an inflated-reputation contributor and the worst-loss one, `tests/test_voting.py::test_trim_excludes_inflated_reputation_and_worst_loss`; it does not catch a poisoned update at middling weight, `::test_trim_is_by_weight_not_by_parameter_value` |
 
 ```python
 from foundation_model.federated import FederatedClient, FederatedConfig, FederatedServer
@@ -247,8 +247,9 @@ Every target runs the demo entry point `python -m foundation_model`, which
 `DEMO_MODE` steers (`single`, `federated`, `p2p`, or the default `all`); each
 mode is run in-process by `tests/test_main.py::test_single_mode_reports_both_uncertainties`,
 `::test_federated_mode_runs_both_strategies`, `::test_p2p_mode_runs_uniform_and_expertise`
-and `::test_all_mode_is_the_default_and_runs_every_demo`. The image build
-itself has no test yet.
+and `::test_all_mode_is_the_default_and_runs_every_demo`. The `cpu` image
+is built and run once (`DEMO_MODE=single`) by the `docker` job in CI on every
+push to `main`; the `gpu` image has no test yet.
 
 ### Local device (CPU)
 

@@ -19,7 +19,7 @@ pytest --cov=foundation_model --cov-fail-under=97   # exactly what CI runs
 
 There is no linter or type-checker configured — CI (`.github/workflows/ci.yml`, Python 3.12, CPU torch) runs the pytest command above and, in a `docs` job, the stdlib doc check `python .github/scripts/check_docs.py` (README test citations exist, links resolve, one front-matter block at most, the README's counts and tables match the code). Every README row or bullet that claims a capability names the test that proves it, or says "no test yet" or "not yet implemented" (Dermot, 10 October 2026). The `--cov-fail-under=97` is a **ratchet** at the measured baseline: raise it with tests that earn it, never lower it. The comparison is exact to two decimals (`[tool.coverage.report] precision = 2` in `pyproject.toml`); at pytest-cov's default precision a total just under the ratchet rounds up and passes while the summary prints FAIL, which is how 87.62% sat green behind a ratchet of 88 until 2026-10-19. Testing mechanics — what each test file guards, known gaps, how to extend the suite — are in `TestingStrategy.md`; keep its file-per-capability table true by giving any new capability its own `tests/test_<capability>.py`.
 
-Docker is the deployment story, not the dev loop: a multi-stage `Dockerfile` with `cpu` and `gpu` targets (GPU differs only by `--build-arg TORCH_EXTRA="--index-url https://download.pytorch.org/whl/cu121"`), both running the demo entry point `python -m foundation_model`. `docker compose up foundation-model-{cpu,federated,p2p,gpu}` selects a demo via the `DEMO_MODE` env var (`single`/`federated`/`p2p`/`all`), which `foundation_model/__main__.py` reads.
+Docker is the deployment story, not the dev loop (a `docker` job in CI builds the `cpu` target with the CPU torch index and runs it once with `DEMO_MODE=single`, on push to `main` only, never on pull requests; Dermot, 30 October 2026): a multi-stage `Dockerfile` with `cpu` and `gpu` targets (GPU differs only by `--build-arg TORCH_EXTRA="--index-url https://download.pytorch.org/whl/cu121"`), both running the demo entry point `python -m foundation_model`. `docker compose up foundation-model-{cpu,federated,p2p,gpu}` selects a demo via the `DEMO_MODE` env var (`single`/`federated`/`p2p`/`all`), which `foundation_model/__main__.py` reads.
 
 ## Architecture
 
@@ -41,8 +41,9 @@ The public API is re-exported flat from `foundation_model/__init__.py`.
 
 ## Which model does which work
 
-Dermot's direction, 2026-10-11: the account-wide split recorded in `star-rangers`' `CLAUDE.md`, applied here. Opus is the default. Fable is kept for narrative prose and image prompts and has no work in this repository.
+Dermot's direction, 2026-10-11: the account-wide split recorded in `star-rangers`' `CLAUDE.md`, applied here. Opus is the default. Fable is kept for narrative prose and image prompts and has no work in this repository, with one exception: a whole-repo next-improvement read.
 
+- **Fable: whole-repo next-improvement reads.** Fable may read the whole repository and propose its next improvement (the `next-improvement` question); that is reading and proposing, and it widens no one's write reservations, so the protected parts stay Opus's (Dermot, 30 October 2026, "Accept all four").
 - **Haiku: reading and trivial fixes.** Read-only searches, summarising a failing CI log, and `check_docs.py` drift. The coverage gate and the doc check catch its mistakes.
 - **Sonnet: code and tests.** Logic changes and new tests, including tests that raise the coverage ratchet. A test that merely passes is not necessarily one that checks the right thing, which is why this is not Haiku's. Numerical assertions keep a stated tolerance.
 - **Opus: the protected parts.** The uncertainty decomposition in `uncertainty.py` and the expertise weighting in `voting.py`, which every distributed module builds on. No model below Opus edits these, even where a gate would catch the mistake.

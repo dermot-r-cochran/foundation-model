@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 96 tests across 9 files)
+## The suite (`tests/`, pytest — 98 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -54,10 +54,26 @@ capability count against the overview table, the samplers against the
 `*Sampler` classes in `sampling.py`, the scale presets against
 `config.py`. What it cannot check is that a cited test proves the claim
 beside it; that stays a reviewer's question, and the README says "no test
-yet" wherever a test only runs the code without checking the claim. Since
-2026-10-30 the one such place is the robustness of trimmed aggregation; the
+yet" wherever a test only runs the code without checking the claim. The
 out-of-distribution behaviour of epistemic uncertainty and the value of the
-aleatoric term have their tests in `test_uncertainty.py`.
+aleatoric term have their tests in `test_uncertainty.py`; the robustness of
+trimmed aggregation, the last such place, has its tests in `test_voting.py`
+since the evening of 2026-10-30 (see the decision below).
+
+## Decision: trimmed aggregation trims by weight (2026-10-30)
+
+`ExpertiseWeightedAggregator(trim_fraction=...)` drops the lowest- and
+highest-*weighted* contributors before averaging; it does not look at
+parameter values (it is not a coordinate-wise trimmed mean). Dermot kept
+that behaviour on 30 October 2026 ("Accept all four", recommendation (a):
+keep trimming by weight and test it). Two tests in `test_voting.py` hold it:
+`test_trim_excludes_inflated_reputation_and_worst_loss` proves what it buys
+(an inflated reputation and a very poor validation loss are both dropped,
+leaving the honest update, where without trimming the inflated contributor
+wins), and `test_trim_is_by_weight_not_by_parameter_value` records its
+limit (a poisoned update at middling weight survives). Changing to
+value-based trimming would be a new decision, and the second test is the one
+that would change with it.
 
 ## Known gaps (candidates for next)
 
@@ -68,11 +84,15 @@ aleatoric term have their tests in `test_uncertainty.py`.
 - **Determinism deserves explicit property tests.** Seeded sampling and
   voting aggregation both claim reproducibility; a test that runs each twice
   and asserts identical output pins it cheaply.
-- The Docker path (`Dockerfile`, `docker-compose.yml`) is unexercised by any
-  test; a CI job that at least builds the image would catch dependency rot.
-  What the image *runs* is covered since 2026-10-19 (`test_main.py` runs
-  every `DEMO_MODE` in-process), so what remains untested is the build and
-  the `cuda` branch on a GPU host.
+- ~~The Docker path is unexercised~~ — **partly closed 2026-10-30**: a
+  `docker` job in CI builds the `cpu` target and runs it once with
+  `DEMO_MODE=single`, on push to `main` only, not on pull requests (Dermot,
+  30 October 2026, "Accept all four"), so a build that rots shows as a red
+  run on `main` after the merge that broke it, not on the PR. It builds with
+  the CPU torch index (`TORCH_EXTRA`) to keep the runner's disk and time
+  down. What the image *runs* is covered in-process since 2026-10-19
+  (`test_main.py`); still untested are the `gpu` target and the `cuda`
+  branch on a GPU host.
 - ~~Coverage is unmeasured~~ — the CI ratchet above holds it at ≥97%,
   compared exactly (see "The coverage ratchet, exactly").
 

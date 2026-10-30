@@ -66,3 +66,27 @@ jobs:
 
       - name: Doc check
         run: python .github/scripts/check_docs.py
+
+  docker:
+    # Builds the cpu image and runs it once, on push to main only - not on
+    # pull requests (Dermot, 30 October 2026, "Accept all four"). A build
+    # that rots therefore shows as a red run on main after the merge that
+    # broke it. TORCH_EXTRA points torch at the CPU index so the runner does
+    # not pull the CUDA stack; the gpu target differs only by that argument
+    # and is not built here. The demo itself is tested in-process by
+    # tests/test_main.py; this job checks the image builds and starts.
+    name: docker build (cpu)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build cpu image
+        run: >
+          docker build --target cpu
+          --build-arg TORCH_EXTRA="--index-url https://download.pytorch.org/whl/cpu"
+          -t foundation-model:cpu .
+
+      - name: Run single demo
+        run: docker run --rm -e DEMO_MODE=single foundation-model:cpu
