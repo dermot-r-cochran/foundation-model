@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 92 tests across 9 files)
+## The suite (`tests/`, pytest — 96 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -12,7 +12,7 @@ suite doubles as a checklist of what the README promises:
 | --- | --- |
 | `test_model.py` | the core model's construction and forward behaviour |
 | `test_sampling.py` | sampling correctness and determinism controls |
-| `test_uncertainty.py` | the epistemic layer — uncertainty estimates behaving as claimed |
+| `test_uncertainty.py` | the epistemic layer — the decomposition's values at both extremes (identical passes: all aleatoric; confident disagreeing passes: all epistemic, log(S)), and a model trained on a narrow stream being at least ten times as uncertain off it |
 | `test_experience.py` | experience-driven updates |
 | `test_voting.py` | ensemble/voting aggregation |
 | `test_trainer.py` | the training loop |
@@ -25,7 +25,9 @@ Run: `pytest` (config in `pyproject.toml`: `testpaths = ["tests"]`), with
 passing locally on 2026-08-24 (an earlier revision of this document recorded
 the suite as not-yet-executed; torch was installed the same day and the run
 confirmed green, at 88% coverage). The five `test_main.py` tests were added
-on 2026-10-19 and the measured total rose to 97.91%.
+on 2026-10-19 and the measured total rose to 97.91%. Four value tests for
+the uncertainty decomposition were added on 2026-10-30; they cover lines
+the shape tests already ran, so the total did not move.
 
 ## The coverage ratchet, exactly
 
@@ -52,9 +54,10 @@ capability count against the overview table, the samplers against the
 `*Sampler` classes in `sampling.py`, the scale presets against
 `config.py`. What it cannot check is that a cited test proves the claim
 beside it; that stays a reviewer's question, and the README says "no test
-yet" wherever a test only runs the code without checking the claim (the
-out-of-distribution behaviour of epistemic uncertainty, the value of the
-aleatoric term, the robustness of trimmed aggregation).
+yet" wherever a test only runs the code without checking the claim. Since
+2026-10-30 the one such place is the robustness of trimmed aggregation; the
+out-of-distribution behaviour of epistemic uncertainty and the value of the
+aleatoric term have their tests in `test_uncertainty.py`.
 
 ## Known gaps (candidates for next)
 

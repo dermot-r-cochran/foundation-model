@@ -10,7 +10,7 @@ The framework provides six interlocking capabilities:
 
 | Capability | Key idea | Proved by |
 |---|---|---|
-| **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_model.py::test_predict_with_uncertainty_shapes`, `tests/test_uncertainty.py::test_epistemic_non_negative`; that it is higher out of distribution has no test yet |
+| **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_uncertainty.py::test_epistemic_higher_out_of_distribution` (a model trained on a narrow token stream is at least ten times as uncertain off it), `::test_epistemic_is_log_s_when_every_pass_is_sure_of_a_different_token`, `tests/test_model.py::test_predict_with_uncertainty_shapes` |
 | **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
 | **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection | `tests/test_sampling.py::test_stratified_selects_from_all_strata`, `::test_diversity_maximises_spread`, `::test_uncertainty_returns_top_k` |
 | **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_fedavg_round`, `::test_server_expertise_round` |
@@ -75,13 +75,18 @@ Total predictive uncertainty is decomposed into:
 
 - **Epistemic** (model uncertainty) = mutual information between weights and
   predictions — high for out-of-distribution inputs.
-  (`tests/test_uncertainty.py::test_epistemic_uncertainty_shape` and
-  `::test_epistemic_non_negative`; that it is high out of distribution has no
-  test yet.)
+  (`tests/test_uncertainty.py::test_epistemic_higher_out_of_distribution`
+  trains the tiny model on a cycle over 16 tokens and finds it at least ten
+  times as uncertain on tokens it never saw;
+  `::test_epistemic_is_log_s_when_every_pass_is_sure_of_a_different_token`
+  pins the value to log(S) when S confident passes all disagree;
+  `::test_epistemic_non_negative` holds the clamp.)
 - **Aleatoric** (data uncertainty) = mean entropy of individual MC
   predictions — irreducible noise inherent in the data.
-  (`tests/test_uncertainty.py::test_aleatoric_uncertainty_shape`, shape only;
-  that its value is the mean per-sample entropy has no test yet.)
+  (`tests/test_uncertainty.py::test_aleatoric_is_mean_of_per_pass_entropies`
+  checks the value against per-pass entropies computed by hand;
+  `::test_epistemic_is_zero_when_every_pass_agrees` checks that identical
+  passes leave the whole of the total in this term.)
 
 ```python
 from foundation_model import FoundationModel, FoundationModelConfig, compute_uncertainty
