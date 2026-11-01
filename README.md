@@ -11,7 +11,7 @@ The framework provides six interlocking capabilities:
 | Capability | Key idea | Proved by |
 |---|---|---|
 | **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_uncertainty.py::test_epistemic_higher_out_of_distribution` (a model trained on a narrow token stream is at least ten times as uncertain off it), `::test_epistemic_is_log_s_when_every_pass_is_sure_of_a_different_token`, `tests/test_model.py::test_predict_with_uncertainty_shapes` |
-| **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
+| **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_trainer.py::test_replay_keeps_an_earlier_task_after_training_on_another` (a task learned first is forgotten without replay and kept with it, by a factor of at least five in loss), `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
 | **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection | `tests/test_sampling.py::test_stratified_selects_from_all_strata`, `::test_diversity_maximises_spread`, `::test_uncertainty_returns_top_k` |
 | **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_fedavg_round`, `::test_server_expertise_round` |
 | **P2P distributed learning** | Gossip averaging with expertise weighting | `tests/test_p2p.py::test_peer_gossip_expertise_weighted`, `::test_gossip_convergence` |
@@ -105,7 +105,12 @@ print("Aleatoric:", result["aleatoric"].mean().item())
 ### 2 · Experience-Driven Continual Learning
 
 An `ExperienceBuffer` stores past inputs weighted by training loss.
-The `Trainer` replays these experiences to prevent catastrophic forgetting.
+The `Trainer` replays these experiences to prevent catastrophic forgetting
+(`tests/test_trainer.py::test_replay_keeps_an_earlier_task_after_training_on_another`
+trains the tiny model on one token cycle, then on a disjoint one: without
+replay the loss on the first climbs back toward guessing; with a stratified
+replay step after every new batch it stays at least five times lower, and
+the new cycle is still learned).
 
 ```python
 from foundation_model import FoundationModel, FoundationModelConfig
