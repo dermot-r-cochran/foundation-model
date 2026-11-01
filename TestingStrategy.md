@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 98 tests across 9 files)
+## The suite (`tests/`, pytest — 99 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -15,7 +15,7 @@ suite doubles as a checklist of what the README promises:
 | `test_uncertainty.py` | the epistemic layer — the decomposition's values at both extremes (identical passes: all aleatoric; confident disagreeing passes: all epistemic, log(S)), and a model trained on a narrow stream being at least ten times as uncertain off it |
 | `test_experience.py` | experience-driven updates |
 | `test_voting.py` | ensemble/voting aggregation |
-| `test_trainer.py` | the training loop |
+| `test_trainer.py` | the training loop, and replay keeping a task learned earlier after training on a disjoint one (the catastrophic-forgetting claim) |
 | `test_federated.py` | federated training behaviour |
 | `test_p2p.py` | peer-to-peer coordination |
 | `test_main.py` | the demo entry point `python -m foundation_model` that the Docker targets run — each `DEMO_MODE` in-process on CPU, and `DEVICE=cuda` falling back to CPU |
@@ -27,7 +27,10 @@ the suite as not-yet-executed; torch was installed the same day and the run
 confirmed green, at 88% coverage). The five `test_main.py` tests were added
 on 2026-10-19 and the measured total rose to 97.91%. Four value tests for
 the uncertainty decomposition were added on 2026-10-30; they cover lines
-the shape tests already ran, so the total did not move.
+the shape tests already ran, so the total did not move. The forgetting test
+in `test_trainer.py` followed on 2026-11-01 (two 200-step runs from one
+seed, about seven seconds, the suite's slowest test); it too runs lines
+already covered, so the total is still 97.91%.
 
 ## The coverage ratchet, exactly
 
