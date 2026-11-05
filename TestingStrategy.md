@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 99 tests across 9 files)
+## The suite (`tests/`, pytest — 100 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -17,7 +17,7 @@ suite doubles as a checklist of what the README promises:
 | `test_voting.py` | ensemble/voting aggregation |
 | `test_trainer.py` | the training loop, and replay keeping a task learned earlier after training on a disjoint one (the catastrophic-forgetting claim) |
 | `test_federated.py` | federated training behaviour |
-| `test_p2p.py` | peer-to-peer coordination |
+| `test_p2p.py` | peer-to-peer coordination, and expertise-weighted gossip keeping one expert's task against seven novices (the dilution claim) |
 | `test_main.py` | the demo entry point `python -m foundation_model` that the Docker targets run — each `DEMO_MODE` in-process on CPU, and `DEVICE=cuda` falling back to CPU |
 
 Run: `pytest` (config in `pyproject.toml`: `testpaths = ["tests"]`), with
@@ -30,7 +30,14 @@ the uncertainty decomposition were added on 2026-10-30; they cover lines
 the shape tests already ran, so the total did not move. The forgetting test
 in `test_trainer.py` followed on 2026-11-01 (two 200-step runs from one
 seed, about seven seconds, the suite's slowest test); it too runs lines
-already covered, so the total is still 97.91%.
+already covered, so the total is still 97.91%. The dilution test in
+`test_p2p.py` followed on 2026-11-05 (two 8-peer runs from one seed, about
+seven seconds); it too runs
+lines already covered. Its limit is recorded in its docstring and the README:
+`val_loss` changes only in `train_step`, so a novice that has absorbed the
+expert by gossip is still weighted as a novice and is diluted again by the next
+novice, which is why the network mean gains 4.5x where the expert gains 23.4x
+at 8 peers (worst of 20 seeds).
 
 ## The coverage ratchet, exactly
 

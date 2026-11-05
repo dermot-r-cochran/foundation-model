@@ -14,7 +14,7 @@ The framework provides six interlocking capabilities:
 | **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_trainer.py::test_replay_keeps_an_earlier_task_after_training_on_another` (a task learned first is forgotten without replay and kept with it, by a factor of at least five in loss), `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
 | **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection | `tests/test_sampling.py::test_stratified_selects_from_all_strata`, `::test_diversity_maximises_spread`, `::test_uncertainty_returns_top_k` |
 | **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_fedavg_round`, `::test_server_expertise_round` |
-| **P2P distributed learning** | Gossip averaging with expertise weighting | `tests/test_p2p.py::test_peer_gossip_expertise_weighted`, `::test_gossip_convergence` |
+| **P2P distributed learning** | Gossip averaging with expertise weighting | `tests/test_p2p.py::test_peer_gossip_expertise_weighted`, `::test_gossip_convergence`, `::test_expertise_weighted_gossip_keeps_the_expert_against_many_novices` |
 | **Expertise-weighted voting** | Prevents poorly-performing majorities from overriding expert minorities | `tests/test_voting.py::test_expert_outvotes_majority`, `::test_aggregate_closer_to_expert` |
 
 Every capability row and bullet in this README names the test that proves it
@@ -195,6 +195,13 @@ better-performing peer — preventing knowledge dilution by many novices.
 In peer-to-peer mode a peer's expertise is measured by its most recent
 training-batch loss, which `Peer.train_step()` stores as `val_loss` as a
 stand-in for validation loss; no held-out set is evaluated.
+`tests/test_p2p.py::test_expertise_weighted_gossip_keeps_the_expert_against_many_novices`
+shows the effect with one expert and seven novices: after ten rounds the
+expert's loss on its task is at least 23 times lower than under uniform
+gossip, but the network mean only at least 4.5 times lower (20 seeds, 5 November
+2026). The limit: `val_loss` changes only in `train_step`, so a novice that has
+absorbed the expert by gossip is still weighted as a novice and is diluted again
+by the next novice.
 
 ```python
 from foundation_model.p2p import P2PNetwork
@@ -238,6 +245,7 @@ winner, scores = vote.tally([
 
 ```bash
 # CPU (local device)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
 pip install -e .
 
 # Development (includes pytest)
