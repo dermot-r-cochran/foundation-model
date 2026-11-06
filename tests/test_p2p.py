@@ -233,3 +233,44 @@ def test_expertise_weighted_gossip_keeps_the_expert_against_many_novices() -> No
     assert uniform_all > 2 * weighted_all, (
         f"network mean uniform {uniform_all:.3f}, weighted {weighted_all:.3f}"
     )
+
+
+@pytest.mark.parametrize("expertise_weighted", [False, True])
+def test_gossip_pairing_reproduces_under_random_seed(
+    tiny_config: FoundationModelConfig, expertise_weighted: bool
+) -> None:
+    """Gossip pairing is reproducible under `random.seed`, and only under it.
+
+    Two 8-peer networks are built from one config; peer i's parameters are then
+    set to base + i (so every peer is distinguishable and the result depends on
+    who was paired with whom), and in the weighted case peer i's val_loss is
+    0.5 + i. Each network runs three gossip rounds after `random.seed(0)`. Every
+    peer's first parameter tensor must be allclose (atol=1e-6) across the two
+    networks: the operations are identical float32 blends in identical order,
+    and 1e-6 leaves room for a kernel difference without admitting a different
+    pairing (peers start whole units apart). A third network under `random.seed(1)`
+    must differ for at least one peer. Deliberately no `torch.manual_seed`
+    here: seeding torch identically in both runs would hide a move from
+    `random.shuffle` to `torch.randperm` in gossip_round. It turns red if the
+    pairing stops following Python's `random`, or if seeding stops mattering.
+    """
+    base = {k: v.detach().clone() for k, v in FoundationModel(tiny_config).state_dict().items()}
+
+    def run(seed: int) -> list:
+        net = P2PNetwork.create(n_peers=8, model_config=tiny_config)
+        for i, peer in enumerate(net.peers):
+            peer.set_parameters({k: v + float(i) for k, v in base.items()})
+            if expertise_weighted:
+                peer.val_loss = 0.5 + i
+        random.seed(seed)
+        for _ in range(3):
+            net.gossip_round(expertise_weighted=expertise_weighted)
+        first_key = next(iter(base))
+        return [p.get_parameters()[first_key].float() for p in net.peers]
+
+    a, b, other = run(0), run(0), run(1)
+    for i, (x, y) in enumerate(zip(a, b)):
+        assert torch.allclose(x, y, rtol=0, atol=1e-6), f"peer {i} differs under the same random seed"
+    assert any(
+        not torch.allclose(x, z, rtol=0, atol=1e-6) for x, z in zip(a, other)
+    ), "a different random seed gave the same network"
