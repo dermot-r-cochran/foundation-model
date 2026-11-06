@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 100 tests across 9 files)
+## The suite (`tests/`, pytest — 109 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -13,11 +13,11 @@ suite doubles as a checklist of what the README promises:
 | `test_model.py` | the core model's construction and forward behaviour |
 | `test_sampling.py` | sampling correctness and determinism controls |
 | `test_uncertainty.py` | the epistemic layer — the decomposition's values at both extremes (identical passes: all aleatoric; confident disagreeing passes: all epistemic, log(S)), and a model trained on a narrow stream being at least ten times as uncertain off it |
-| `test_experience.py` | experience-driven updates |
-| `test_voting.py` | ensemble/voting aggregation |
+| `test_experience.py` | experience-driven updates, and which seed governs which replay strategy (the generator reproduces stratified; `random.seed` reproduces priority and uniform) |
+| `test_voting.py` | ensemble/voting aggregation, the aggregator as a pure function of base, updates and tracker state, and the cosine penalty end to end (reputation 0.81 / 0.99 after one round, the next aggregate closer to the expert) |
 | `test_trainer.py` | the training loop, and replay keeping a task learned earlier after training on a disjoint one (the catastrophic-forgetting claim) |
 | `test_federated.py` | federated training behaviour |
-| `test_p2p.py` | peer-to-peer coordination, and expertise-weighted gossip keeping one expert's task against seven novices (the dilution claim) |
+| `test_p2p.py` | peer-to-peer coordination, gossip pairing reproducing under `random.seed`, and expertise-weighted gossip keeping one expert's task against seven novices (the dilution claim) |
 | `test_main.py` | the demo entry point `python -m foundation_model` that the Docker targets run — each `DEMO_MODE` in-process on CPU, and `DEVICE=cuda` falling back to CPU |
 
 Run: `pytest` (config in `pyproject.toml`: `testpaths = ["tests"]`), with
@@ -29,7 +29,7 @@ on 2026-10-19 and the measured total rose to 97.91%. Four value tests for
 the uncertainty decomposition were added on 2026-10-30; they cover lines
 the shape tests already ran, so the total did not move. The forgetting test
 in `test_trainer.py` followed on 2026-11-01 (two 200-step runs from one
-seed, about seven seconds, the suite's slowest test); it too runs lines
+seed, about seven seconds, among the slowest); it too runs lines
 already covered, so the total is still 97.91%. The dilution test in
 `test_p2p.py` followed on 2026-11-05 (two 8-peer runs from one seed, about
 seven seconds); it too runs
@@ -37,11 +37,12 @@ lines already covered. Its limit is recorded in its docstring and the README:
 `val_loss` changes only in `train_step`, so a novice that has absorbed the
 expert by gossip is still weighted as a novice and is diluted again by the next
 novice, which is why the network mean gains 4.5x where the expert gains 23.4x
-at 8 peers (worst of 20 seeds).
+at 8 peers (worst of 20 seeds). The determinism tests followed on 2026-11-06
+(nine tests); the measured total rose to 98.55%, so the ratchet moved to 98.
 
 ## The coverage ratchet, exactly
 
-CI runs `pytest --cov=foundation_model --cov-fail-under=97`. pytest-cov
+CI runs `pytest --cov=foundation_model --cov-fail-under=98`. pytest-cov
 compares the total against that figure at coverage's report precision,
 which defaults to 0 decimals: a total of 87.62% rounded to 88 and passed the
 old ratchet of 88 for the whole of September and early October 2026, while
@@ -91,9 +92,17 @@ that would change with it.
   CPU torch wheel with pip caching and runs the suite on Python 3.12 with a
   coverage ratchet at the measured 88% baseline, on every PR and push to
   `main`.
-- **Determinism deserves explicit property tests.** Seeded sampling and
-  voting aggregation both claim reproducibility; a test that runs each twice
-  and asserts identical output pins it cheaply.
+- ~~Determinism deserves explicit property tests~~ — **closed 2026-11-06**:
+  nine tests run each mechanism twice and compare. Stratified sampling and
+  stratified replay reproduce from the `torch.Generator` alone (the global
+  RNG is deliberately perturbed between runs); the priority and uniform
+  replay strategies follow Python's `random.seed`, and the generator governs
+  the stratified path only; gossip pairing reproduces under `random.seed`;
+  aggregation is a pure function of base, updates and tracker state, and
+  the tracker moves by cosine. `DiscreteVote.tally` has no randomness, so
+  nothing tests it for determinism. One limit: dropping `generator=` from
+  the stratified top-up call alone is not observable at pool 6, where the
+  top-up draws a single index.
 - ~~The Docker path is unexercised~~ — **partly closed 2026-10-30**: a
   `docker` job in CI builds the `cpu` target and runs it once with
   `DEMO_MODE=single`, on push to `main` only, not on pull requests (Dermot,
@@ -103,7 +112,7 @@ that would change with it.
   down. What the image *runs* is covered in-process since 2026-10-19
   (`test_main.py`); still untested are the `gpu` target and the `cuda`
   branch on a GPU host.
-- ~~Coverage is unmeasured~~ — the CI ratchet above holds it at ≥97%,
+- ~~Coverage is unmeasured~~ — the CI ratchet above holds it at ≥98%,
   compared exactly (see "The coverage ratchet, exactly").
 
 ## Extending

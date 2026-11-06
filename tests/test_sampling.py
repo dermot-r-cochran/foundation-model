@@ -152,3 +152,66 @@ def test_representative_diversity_fraction_zero() -> None:
 def test_representative_invalid_fraction() -> None:
     with pytest.raises(ValueError):
         RepresentativeSampler(diversity_fraction=1.5)
+
+
+# ------------------------------------------------------------------
+# Determinism: the generator, and only the generator, governs the draw
+# ------------------------------------------------------------------
+
+
+def _seeded_stratified_run(
+    indices: list, priorities: list, k: int, generator_seed: int, global_seed: int
+) -> list:
+    """One StratifiedSampler draw with a fresh generator and a chosen global RNG state."""
+    torch.manual_seed(global_seed)
+    g = torch.Generator()
+    g.manual_seed(generator_seed)
+    return StratifiedSampler(n_strata=4).sample(indices, priorities, k=k, generator=g)
+
+
+def test_stratified_same_generator_seed_gives_same_selection() -> None:
+    """The same generator seed reproduces the selection, whatever the global RNG does.
+
+    Pool of 40 with priorities 0..39, four strata, k=16. Two runs use fresh
+    generators seeded 0, but the global torch RNG is seeded differently before
+    each (1, then 2); a third run uses generator seed 1. The lists are
+    compared exactly, since they are lists of ints. The global-seed
+    perturbation is deliberate: if `generator=` were dropped from the
+    per-stratum randperm call (sampling.py), the
+    draws would come from the global RNG, which differs between the first two
+    runs, so the equality would turn red. Without the perturbation, a global
+    seed left unchanged between runs could make a dropped generator pass by
+    coincidence. The third run turns red if the seed were ignored altogether.
+    """
+    indices = list(range(40))
+    priorities = [float(i) for i in range(40)]
+    first = _seeded_stratified_run(indices, priorities, 16, generator_seed=0, global_seed=1)
+    second = _seeded_stratified_run(indices, priorities, 16, generator_seed=0, global_seed=2)
+    other = _seeded_stratified_run(indices, priorities, 16, generator_seed=1, global_seed=1)
+    assert first == second, "same generator seed gave different selections"
+    assert first != other, "a different generator seed gave the same selection"
+
+
+def test_stratified_top_up_when_a_stratum_is_short_is_also_seeded() -> None:
+    """The top-up draw (sampling.py, after the per-stratum quotas) also uses the generator.
+
+    Pool of 6 with priorities 0..5 and four strata gives buckets of 2, 1, 2, 1
+    members. With k=6 the quotas (base 1, remainder 2, capped at bucket size)
+    come to 5, so the sixth index is added by the top-up randperm. The test
+    asserts six unique indices (nothing lost or repeated by the top-up) and
+    that the same generator seed reproduces the same list in the same order,
+    with the global RNG seeded differently before each run. It turns red if
+    the per-stratum randperm calls drop `generator=`, or if the top-up fails
+    to fill the selection to k or repeats an index. Limit, stated plainly: the
+    top-up here draws from a single remaining index, and a one-element
+    randperm is the same under any RNG, so dropping `generator=` from the
+    top-up call alone is not observable in this configuration (probed; it
+    would need a top-up of two or more indices).
+    """
+    indices = list(range(6))
+    priorities = [float(i) for i in range(6)]
+    first = _seeded_stratified_run(indices, priorities, 6, generator_seed=0, global_seed=1)
+    second = _seeded_stratified_run(indices, priorities, 6, generator_seed=0, global_seed=2)
+    assert len(first) == 6
+    assert len(set(first)) == 6, f"top-up produced duplicates: {first}"
+    assert first == second, "same generator seed gave a different top-up order"

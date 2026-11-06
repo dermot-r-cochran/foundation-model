@@ -97,6 +97,71 @@ def test_aggregate_closer_to_expert(tiny_base: dict) -> None:
     assert dist_to_expert < dist_to_novice
 
 
+def _expert_novice_updates(base: dict) -> list:
+    """The test_aggregate_closer_to_expert setup: expert +0.1 at loss 0.1, novice -0.5 at loss 5.0."""
+    expert_state = {k: v + 0.1 for k, v in base.items()}
+    novice_state = {k: v - 0.5 for k, v in base.items()}
+    return [
+        (0, expert_state, 100, 0.1),
+        (1, novice_state, 1000, 5.0),
+    ]
+
+
+def test_aggregate_is_reproducible_from_fresh_trackers(tiny_base: dict) -> None:
+    """Aggregation is a pure function of base, updates and tracker state.
+
+    The expert/novice setup of test_aggregate_closer_to_expert goes through two
+    aggregators, each with its own fresh ReputationTracker, and every key of the
+    two results is compared with torch.allclose at atol=1e-6. The rationale for
+    that tolerance: both runs perform identical float32 operations in identical
+    order, so they should agree to the bit; 1e-6 only leaves room for a kernel
+    that reorders the weighted sum. It turns red if aggregation reads hidden
+    state (a module-level cache, a random draw, a tracker shared between
+    instances).
+    """
+    updates = _expert_novice_updates(tiny_base)
+    a = ExpertiseWeightedAggregator(reputation_tracker=ReputationTracker()).aggregate(
+        tiny_base, updates
+    )
+    b = ExpertiseWeightedAggregator(reputation_tracker=ReputationTracker()).aggregate(
+        tiny_base, updates
+    )
+    assert set(a) == set(b)
+    for key in a:
+        assert torch.allclose(a[key], b[key], atol=1e-6), f"{key} differs between runs"
+
+
+def test_aggregate_penalises_the_misaligned_contributor_through_cosine(tiny_base: dict) -> None:
+    """The tracker moves by cosine, end to end, and the next round leans toward the expert.
+
+    Same setup, one tracker, aggregated twice. The aggregate sits near the
+    expert, so the expert's delta has positive cosine with it and the novice's
+    negative. After round 1 the novice's reputation is 1.0 x 0.9 decay x 0.9
+    penalty = 0.81 and the expert's 1.0 x 0.9 decay x 1.1 boost = 0.99; each is
+    two float multiplications, so rel=1e-9 is a deliberate tolerance (it admits
+    only rounding, not a different multiplier). Round 2 then weights the expert
+    more heavily, so its aggregate is strictly closer to the expert than round
+    1's (measured 0.00966 against 0.011765 on the first parameter tensor). It
+    turns red if the cosine score stops reaching the tracker, or the sign
+    stops choosing between boost and penalty.
+    """
+    updates = _expert_novice_updates(tiny_base)
+    expert_state = updates[0][1]
+    tracker = ReputationTracker()
+    agg = ExpertiseWeightedAggregator(reputation_tracker=tracker)
+    first_key = next(iter(tiny_base))
+
+    def distance_to_expert(result: dict) -> float:
+        return (result[first_key].float() - expert_state[first_key].float()).abs().mean().item()
+
+    round_1 = agg.aggregate(tiny_base, updates)
+    assert tracker.get_stats(1).reputation == pytest.approx(0.81, rel=1e-9)
+    assert tracker.get_stats(0).reputation == pytest.approx(0.99, rel=1e-9)
+
+    round_2 = agg.aggregate(tiny_base, updates)
+    assert distance_to_expert(round_2) < distance_to_expert(round_1)
+
+
 def test_aggregate_empty_returns_base(tiny_base: dict) -> None:
     agg = ExpertiseWeightedAggregator()
     result = agg.aggregate(tiny_base, [])

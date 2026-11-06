@@ -122,7 +122,7 @@ class FederatedClient:
         """Down-sample *input_ids* / *labels* to *max_samples* rows using
         stratified sampling.
 
-        A quick per-row proxy loss (mean absolute token index) is used as
+        A quick per-row proxy (per-row variance of token ids) is used as
         the priority signal so that more "extreme" (unusual) sequences are
         as likely to be selected as common ones.
         """
