@@ -108,16 +108,15 @@ def _expert_novice_updates(base: dict) -> list:
 
 
 def test_aggregate_is_reproducible_from_fresh_trackers(tiny_base: dict) -> None:
-    """Aggregation is a pure function of base, updates and tracker state.
+    """Aggregation repeats exactly from the same base, updates and a fresh tracker.
 
     The expert/novice setup of test_aggregate_closer_to_expert goes through two
     aggregators, each with its own fresh ReputationTracker, and every key of the
     two results is compared with torch.allclose at atol=1e-6. The rationale for
     that tolerance: both runs perform identical float32 operations in identical
     order, so they should agree to the bit; 1e-6 only leaves room for a kernel
-    that reorders the weighted sum. It turns red if aggregation reads hidden
-    state (a module-level cache, a random draw, a tracker shared between
-    instances).
+    that reorders the weighted sum. It turns red if aggregation takes a random
+    draw or shares tracker state between instances.
     """
     updates = _expert_novice_updates(tiny_base)
     a = ExpertiseWeightedAggregator(reputation_tracker=ReputationTracker()).aggregate(
@@ -128,7 +127,7 @@ def test_aggregate_is_reproducible_from_fresh_trackers(tiny_base: dict) -> None:
     )
     assert set(a) == set(b)
     for key in a:
-        assert torch.allclose(a[key], b[key], atol=1e-6), f"{key} differs between runs"
+        assert torch.allclose(a[key], b[key], rtol=0, atol=1e-6), f"{key} differs between runs"
 
 
 def test_aggregate_penalises_the_misaligned_contributor_through_cosine(tiny_base: dict) -> None:

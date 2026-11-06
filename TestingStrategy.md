@@ -14,7 +14,7 @@ suite doubles as a checklist of what the README promises:
 | `test_sampling.py` | sampling correctness and determinism controls |
 | `test_uncertainty.py` | the epistemic layer — the decomposition's values at both extremes (identical passes: all aleatoric; confident disagreeing passes: all epistemic, log(S)), and a model trained on a narrow stream being at least ten times as uncertain off it |
 | `test_experience.py` | experience-driven updates, and which seed governs which replay strategy (the generator reproduces stratified; `random.seed` reproduces priority and uniform) |
-| `test_voting.py` | ensemble/voting aggregation, the aggregator as a pure function of base, updates and tracker state, and the cosine penalty end to end (reputation 0.81 / 0.99 after one round, the next aggregate closer to the expert) |
+| `test_voting.py` | ensemble/voting aggregation, the aggregator repeating from the same base, updates and a fresh tracker, and the cosine penalty end to end (reputation 0.81 / 0.99 after one round, the next aggregate closer to the expert) |
 | `test_trainer.py` | the training loop, and replay keeping a task learned earlier after training on a disjoint one (the catastrophic-forgetting claim) |
 | `test_federated.py` | federated training behaviour |
 | `test_p2p.py` | peer-to-peer coordination, gossip pairing reproducing under `random.seed`, and expertise-weighted gossip keeping one expert's task against seven novices (the dilution claim) |
@@ -98,7 +98,7 @@ that would change with it.
   RNG is deliberately perturbed between runs); the priority and uniform
   replay strategies follow Python's `random.seed`, and the generator governs
   the stratified path only; gossip pairing reproduces under `random.seed`;
-  aggregation is a pure function of base, updates and tracker state, and
+  aggregation repeats from the same base, updates and a fresh tracker, and
   the tracker moves by cosine. `DiscreteVote.tally` has no randomness, so
   nothing tests it for determinism. The top-up case draws from five
   indices, because a top-up of one is the same under any RNG.

@@ -248,7 +248,7 @@ def test_gossip_pairing_reproduces_under_random_seed(
     peer's first parameter tensor must be allclose (atol=1e-6) across the two
     networks: the operations are identical float32 blends in identical order,
     and 1e-6 leaves room for a kernel difference without admitting a different
-    pairing (peers differ by whole units). A third network under `random.seed(1)`
+    pairing (peers start whole units apart). A third network under `random.seed(1)`
     must differ for at least one peer. Deliberately no `torch.manual_seed`
     here: seeding torch identically in both runs would hide a move from
     `random.shuffle` to `torch.randperm` in gossip_round. It turns red if the
@@ -270,7 +270,7 @@ def test_gossip_pairing_reproduces_under_random_seed(
 
     a, b, other = run(0), run(0), run(1)
     for i, (x, y) in enumerate(zip(a, b)):
-        assert torch.allclose(x, y, atol=1e-6), f"peer {i} differs under the same random seed"
+        assert torch.allclose(x, y, rtol=0, atol=1e-6), f"peer {i} differs under the same random seed"
     assert any(
-        not torch.allclose(x, z, atol=1e-6) for x, z in zip(a, other)
+        not torch.allclose(x, z, rtol=0, atol=1e-6) for x, z in zip(a, other)
     ), "a different random seed gave the same network"

@@ -136,16 +136,6 @@ Four samplers prevent large or skewed datasets from dominating training:
 | `UncertaintySampler` | Top-k epistemic uncertainty — most informative examples | `tests/test_sampling.py::test_uncertainty_returns_top_k` |
 | `RepresentativeSampler` | Combines diversity + uncertainty in one pass | `tests/test_sampling.py::test_representative_returns_correct_count`, `::test_representative_diversity_fraction_zero` |
 
-- Stratified selection is reproducible: the same `torch.Generator` seed gives the
-  same selection whatever the global RNG does
-  (`tests/test_sampling.py::test_stratified_same_generator_seed_gives_same_selection`,
-  `::test_stratified_top_up_when_a_stratum_is_short_is_also_seeded`), and so does a
-  stratified replay sample from the experience buffer
-  (`tests/test_experience.py::test_stratified_replay_sample_reproduces_under_a_generator`).
-  The `generator` governs the stratified path only: the priority and uniform
-  replay strategies follow Python's `random.seed`
-  (`tests/test_experience.py::test_priority_and_uniform_samples_reproduce_under_random_seed`).
-
 ```python
 from foundation_model import StratifiedSampler, RepresentativeSampler
 import torch
@@ -211,9 +201,7 @@ expert's loss on its task is at least 23 times lower than under uniform
 gossip, but the network mean only at least 4.5 times lower (20 seeds, 5 November
 2026). The limit: `val_loss` changes only in `train_step`, so a novice that has
 absorbed the expert by gossip is still weighted as a novice and is diluted again
-by the next novice. Peer pairing is reproducible under `random.seed`, for both
-plain and expertise-weighted gossip
-(`tests/test_p2p.py::test_gossip_pairing_reproduces_under_random_seed`).
+by the next novice.
 
 ```python
 from foundation_model.p2p import P2PNetwork
@@ -231,11 +219,7 @@ for step in range(1000):
 Any discrete decision (hyperparameter choice, architecture variant,
 model update acceptance) can be put to an expertise-weighted vote.
 A single expert contributor can legitimately out-weigh a majority of
-poorly-performing participants. Model aggregation is a pure function of the
-base parameters, the updates and the tracker state, and the tracker moves by
-the cosine of each update with the aggregate
-(`tests/test_voting.py::test_aggregate_is_reproducible_from_fresh_trackers`,
-`::test_aggregate_penalises_the_misaligned_contributor_through_cosine`).
+poorly-performing participants.
 
 ```python
 from foundation_model.voting import DiscreteVote, ReputationTracker

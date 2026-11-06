@@ -160,9 +160,9 @@ def test_priority_and_uniform_samples_reproduce_under_random_seed(strategy: str)
     These two strategies draw with `random.choices` and `random.sample`; the
     `generator` argument governs the stratified path only. Seeding `random`
     with 5 before each of two calls, with no generator, gives the same index
-    list (exact, ints). It turns red if either strategy moves to a source of
-    randomness that `random.seed` does not control, such as the global torch
-    RNG. (It does not assert that the generator is ignored: that is a
+    list (exact, ints). It turns red if either strategy moves to the global
+    torch RNG. It proves repeatability under a seed, not that the seed
+    changes the draw. (It does not assert that the generator is ignored: that is a
     behaviour this repository may change.)
     """
     buf = _indexed_buffer()
