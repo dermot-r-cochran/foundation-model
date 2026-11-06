@@ -100,9 +100,8 @@ that would change with it.
   the stratified path only; gossip pairing reproduces under `random.seed`;
   aggregation is a pure function of base, updates and tracker state, and
   the tracker moves by cosine. `DiscreteVote.tally` has no randomness, so
-  nothing tests it for determinism. One limit: dropping `generator=` from
-  the stratified top-up call alone is not observable at pool 6, where the
-  top-up draws a single index.
+  nothing tests it for determinism. The top-up case draws from five
+  indices, because a top-up of one is the same under any RNG.
 - ~~The Docker path is unexercised~~ — **partly closed 2026-10-30**: a
   `docker` job in CI builds the `cpu` target and runs it once with
   `DEMO_MODE=single`, on push to `main` only, not on pull requests (Dermot,
