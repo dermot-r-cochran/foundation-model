@@ -113,6 +113,17 @@ that would change with it.
   branch on a GPU host.
 - ~~Coverage is unmeasured~~ — the CI ratchet above holds it at ≥98%,
   compared exactly (see "The coverage ratchet, exactly").
+- **Two measures are both called "epistemic"** (recorded 2026-11-07, no code
+  change). `FoundationModel.predict_with_uncertainty()` returns the variance
+  of the softmax probabilities across MC passes, averaged over the
+  vocabulary; `compute_uncertainty()["epistemic"]` is the mutual
+  information, predictive entropy minus mean per-pass entropy, clamped at
+  zero. Both are zero when every pass agrees and grow with disagreement, but
+  they are on different scales and are not interchangeable: the README's
+  values and the out-of-distribution, log(S) and non-negativity tests hold
+  for `compute_uncertainty()` only, and
+  `tests/test_model.py::test_predict_with_uncertainty_shapes` checks shapes,
+  not values.
 
 ## Extending
 
