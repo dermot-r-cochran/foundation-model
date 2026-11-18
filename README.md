@@ -264,7 +264,7 @@ or, in that project's `pyproject.toml`:
 dependencies = ["foundation-model @ git+https://github.com/dermot-r-cochran/foundation-model@v0.1.0"]
 ```
 
-No release is tagged yet; the first, `v0.1.0`, is owed. Until it is pushed, put a commit SHA in place of `v0.1.0`.
+The tag shown is an example: no release is tagged yet, so until one is, put a commit SHA in place of `v0.1.0`.
 
 ---
 
