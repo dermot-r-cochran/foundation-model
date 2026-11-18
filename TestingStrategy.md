@@ -89,7 +89,7 @@ that would change with it.
 ## Known gaps (candidates for next)
 
 - ~~No CI~~ — **closed 2026-08-24**: `.github/workflows/ci.yml` installs the
-  CPU torch wheel with pip caching and runs the suite on Python 3.12 with a
+  CPU torch wheel with pip caching and runs the suite on Python 3.11 and 3.15 with a
   coverage ratchet at the measured 88% baseline, on every PR and push to
   `main`.
 - ~~Determinism deserves explicit property tests~~ — **closed 2026-11-06**:
