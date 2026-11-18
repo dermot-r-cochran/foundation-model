@@ -20,8 +20,13 @@ concurrency:
 
 jobs:
   test:
-    name: pytest (Python 3.12, CPU torch)
+    name: pytest (Python ${{ matrix.python-version }}, CPU torch)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The declared floor (3.11) and current stable.
+        python-version: ["3.11", "3.15"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,7 +34,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
           cache: pip
 
       - name: Install
@@ -63,7 +68,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.15"
 
       - name: Doc check
         run: python .github/scripts/check_docs.py
