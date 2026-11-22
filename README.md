@@ -13,7 +13,7 @@ The framework provides six interlocking capabilities:
 | **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_uncertainty.py::test_epistemic_higher_out_of_distribution` (a model trained on a narrow token stream is at least ten times as uncertain off it), `::test_epistemic_is_log_s_when_every_pass_is_sure_of_a_different_token`, `tests/test_model.py::test_predict_with_uncertainty_shapes` |
 | **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_trainer.py::test_replay_keeps_an_earlier_task_after_training_on_another` (a task learned first is forgotten without replay and kept with it, by a factor of at least five in loss), `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
 | **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection | `tests/test_sampling.py::test_stratified_selects_from_all_strata`, `::test_diversity_maximises_spread`, `::test_uncertainty_returns_top_k` |
-| **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_fedavg_round`, `::test_server_expertise_round` |
+| **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise` (the same two updates move the global model toward the large client under FedAvg and toward the low-loss client under expertise weighting), `::test_server_fedavg_round`, `::test_server_expertise_round` |
 | **P2P distributed learning** | Gossip averaging with expertise weighting | `tests/test_p2p.py::test_peer_gossip_expertise_weighted`, `::test_gossip_convergence`, `::test_expertise_weighted_gossip_keeps_the_expert_against_many_novices` |
 | **Expertise-weighted voting** | Prevents poorly-performing majorities from overriding expert minorities | `tests/test_voting.py::test_expert_outvotes_majority`, `::test_aggregate_closer_to_expert` |
 
@@ -164,8 +164,8 @@ Two aggregation strategies are available:
 
 | Strategy | Description | Proved by |
 |---|---|---|
-| `"fedavg"` | Classic FedAvg — weight by dataset size | `tests/test_federated.py::test_fedavg_unequal_weights`, `::test_server_fedavg_round` |
-| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming, by expertise weight rather than by parameter values | `tests/test_federated.py::test_server_expertise_round`; the trim drops an inflated-reputation contributor and the worst-loss one, `tests/test_voting.py::test_trim_excludes_inflated_reputation_and_worst_loss`; it does not catch a poisoned update at middling weight, `::test_trim_is_by_weight_not_by_parameter_value` |
+| `"fedavg"` | Classic FedAvg — weight by dataset size | `tests/test_federated.py::test_fedavg_unequal_weights`, `::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise`, `::test_server_fedavg_round` |
+| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming, by expertise weight rather than by parameter values | `tests/test_federated.py::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise`, `::test_server_expertise_round`; `FederatedConfig.trim_fraction` reaches the aggregator, `::test_server_trim_fraction_reaches_the_aggregator`; the trim drops an inflated-reputation contributor and the worst-loss one, `tests/test_voting.py::test_trim_excludes_inflated_reputation_and_worst_loss`; it does not catch a poisoned update at middling weight, `::test_trim_is_by_weight_not_by_parameter_value` |
 
 ```python
 from foundation_model.federated import FederatedClient, FederatedConfig, FederatedServer
@@ -264,7 +264,7 @@ or, in that project's `pyproject.toml`:
 dependencies = ["foundation-model @ git+https://github.com/dermot-r-cochran/foundation-model@v0.1.0"]
 ```
 
-The tag shown is an example: no release is tagged yet, so until one is, put a commit SHA in place of `v0.1.0`.
+`v0.1.0` was tagged on 18 November 2026. To depend on a commit after it, put the commit SHA in place of the tag.
 
 ---
 

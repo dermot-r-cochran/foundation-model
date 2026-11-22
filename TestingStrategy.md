@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 109 tests across 9 files)
+## The suite (`tests/`, pytest — 111 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -16,7 +16,7 @@ suite doubles as a checklist of what the README promises:
 | `test_experience.py` | experience-driven updates, and which seed governs which replay strategy (the generator reproduces stratified; `random.seed` reproduces priority and uniform) |
 | `test_voting.py` | ensemble/voting aggregation, the aggregator repeating from the same base, updates and a fresh tracker, and the cosine penalty end to end (reputation 0.81 / 0.99 after one round, the next aggregate closer to the expert) |
 | `test_trainer.py` | the training loop, and replay keeping a task learned earlier after training on a disjoint one (the catastrophic-forgetting claim) |
-| `test_federated.py` | federated training behaviour |
+| `test_federated.py` | federated training behaviour, and what the server's global model becomes: the same two updates follow dataset size under FedAvg and validation loss under expertise weighting, and `FederatedConfig.trim_fraction` reaches the aggregator |
 | `test_p2p.py` | peer-to-peer coordination, gossip pairing reproducing under `random.seed`, and expertise-weighted gossip keeping one expert's task against seven novices (the dilution claim) |
 | `test_main.py` | the demo entry point `python -m foundation_model` that the Docker targets run — each `DEMO_MODE` in-process on CPU, and `DEVICE=cuda` falling back to CPU |
 
@@ -39,6 +39,8 @@ expert by gossip is still weighted as a novice and is diluted again by the next
 novice, which is why the network mean gains 4.5x where the expert gains 23.4x
 at 8 peers (worst of 20 seeds). The determinism tests followed on 2026-11-06
 (nine tests); the measured total rose to 98.55%, so the ratchet moved to 98.
+The federated server's two value tests followed on 2026-11-22; they run lines
+already covered, so the total is still 98.55%.
 
 ## The coverage ratchet, exactly
 
@@ -69,7 +71,11 @@ yet" wherever a test only runs the code without checking the claim. The
 out-of-distribution behaviour of epistemic uncertainty and the value of the
 aleatoric term have their tests in `test_uncertainty.py`; the robustness of
 trimmed aggregation, the last such place, has its tests in `test_voting.py`
-since the evening of 2026-10-30 (see the decision below).
+since the evening of 2026-10-30 (see the decision below). One more such place
+was found on 2026-11-22: the federated row cited two tests that assert only
+that the round counter advanced, and nothing read the server's global model
+after an aggregate. `test_federated.py` now holds what the model becomes
+under each strategy.
 
 ## Decision: trimmed aggregation trims by weight (2026-10-30)
 
@@ -124,6 +130,15 @@ that would change with it.
   for `compute_uncertainty()` only, and
   `tests/test_model.py::test_predict_with_uncertainty_shapes` checks shapes,
   not values.
+- **The federated server knows a client only by its place in the list**
+  (recorded 2026-11-22, no code change). `FederatedServer.aggregate()` takes
+  `(state_dict, n_samples)` pairs and uses each pair's index as the
+  contributor id, so reputation carries across rounds only when the same
+  clients are listed in the same order every round. Listed the other way round
+  in round 2, an aligned and a misaligned client each end on 0.8019 (one boost
+  and one penalty apiece) where by client they would be 0.9801 and 0.6561. The
+  server tests in `test_federated.py` are one round from fresh reputations
+  and do not depend on it.
 
 ## Extending
 
