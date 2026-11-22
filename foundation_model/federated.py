@@ -265,6 +265,7 @@ class FederatedServer:
         self,
         client_updates: List[Tuple[Dict[str, torch.Tensor], int]],
         val_losses: Optional[List[float]] = None,
+        client_ids: Optional[List[int]] = None,
     ) -> None:
         """Aggregate client updates into the global model.
 
@@ -275,7 +276,31 @@ class FederatedServer:
         val_losses:
             Per-client validation loss, required when
             ``fed_config.strategy == "expertise"``.  Ignored for ``"fedavg"``.
+        client_ids:
+            Per-client identifier, in the same order as *client_updates*
+            (typically each :class:`FederatedClient`'s ``client_id``).  Under
+            ``"expertise"`` it is the key the reputation tracker keeps each
+            client's reputation under, so a client keeps its own reputation
+            across rounds whatever its place in the list.  When ``None`` the
+            list position is the identifier, which is right only if every
+            round lists the same clients in the same order.  Ignored for
+            ``"fedavg"``, which keeps no per-client state.
+
+        Raises
+        ------
+        ValueError
+            If *client_ids* is given with a length other than that of
+            *client_updates*, or repeats an identifier.
         """
+        if client_ids is not None:
+            if len(client_ids) != len(client_updates):
+                raise ValueError(
+                    f"client_ids has {len(client_ids)} entries for "
+                    f"{len(client_updates)} client updates"
+                )
+            if len(set(client_ids)) != len(client_ids):
+                raise ValueError("client_ids repeats an identifier")
+
         if not client_updates:
             return
 
@@ -284,10 +309,12 @@ class FederatedServer:
         if self.fed_config.strategy == "expertise":
             if val_losses is None:
                 val_losses = [10.0] * len(client_updates)
+            if client_ids is None:
+                client_ids = list(range(len(client_updates)))
             updates_with_meta = [
-                (i, state, n, loss)
-                for i, ((state, n), loss) in enumerate(
-                    zip(client_updates, val_losses)
+                (cid, state, n, loss)
+                for cid, (state, n), loss in zip(
+                    client_ids, client_updates, val_losses
                 )
             ]
             aggregated = self._expertise_agg.aggregate(base, updates_with_meta)

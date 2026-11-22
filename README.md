@@ -10,10 +10,10 @@ The framework provides six interlocking capabilities:
 
 | Capability | Key idea | Proved by |
 |---|---|---|
-| **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_uncertainty.py::test_epistemic_higher_out_of_distribution` (a model trained on a narrow token stream is at least ten times as uncertain off it), `::test_epistemic_is_log_s_when_every_pass_is_sure_of_a_different_token`, `tests/test_model.py::test_predict_with_uncertainty_shapes` |
+| **Epistemic uncertainty** | MC-Dropout: the model knows what it doesn't know | `tests/test_uncertainty.py::test_epistemic_higher_out_of_distribution` (a model trained on a narrow token stream is at least ten times as uncertain off it), `::test_epistemic_is_log_s_when_every_pass_is_sure_of_a_different_token`; the quicker measure `predict_with_uncertainty()` returns, `tests/test_model.py::test_predict_with_uncertainty_is_higher_off_the_training_stream`, `::test_predict_with_uncertainty_is_the_variance_of_the_softmax_across_passes`, `::test_predict_with_uncertainty_shapes` |
 | **Experience-driven learning** | Priority replay buffer with representative sub-sampling | `tests/test_trainer.py::test_replay_keeps_an_earlier_task_after_training_on_another` (a task learned first is forgotten without replay and kept with it, by a factor of at least five in loss), `tests/test_experience.py::test_stratified_sampling_covers_priority_range`, `tests/test_trainer.py::test_replay_step_after_training` |
 | **Representative sub-sampling** | Stratified, diversity (coreset), and uncertainty-driven selection | `tests/test_sampling.py::test_stratified_selects_from_all_strata`, `::test_diversity_maximises_spread`, `::test_uncertainty_returns_top_k` |
-| **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise` (the same two updates move the global model toward the large client under FedAvg and toward the low-loss client under expertise weighting), `::test_server_fedavg_round`, `::test_server_expertise_round` |
+| **Federated learning** | FedAvg *and* expertise-weighted aggregation | `tests/test_federated.py::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise` (the same two updates move the global model toward the large client under FedAvg and toward the low-loss client under expertise weighting), `::test_server_keeps_each_clients_reputation_by_client_id_across_rounds` (a client keeps its own reputation when the list order changes between rounds), `::test_server_fedavg_round`, `::test_server_expertise_round` |
 | **P2P distributed learning** | Gossip averaging with expertise weighting | `tests/test_p2p.py::test_peer_gossip_expertise_weighted`, `::test_gossip_convergence`, `::test_expertise_weighted_gossip_keeps_the_expert_against_many_novices` |
 | **Expertise-weighted voting** | Prevents poorly-performing majorities from overriding expert minorities | `tests/test_voting.py::test_expert_outvotes_majority`, `::test_aggregate_closer_to_expert` |
 
@@ -102,6 +102,17 @@ print("Epistemic:", result["epistemic"].mean().item())
 print("Aleatoric:", result["aleatoric"].mean().item())
 ```
 
+`FoundationModel.predict_with_uncertainty()` is a quicker, separate measure:
+it returns the mean logits of the passes and, per token, the variance across
+passes of each vocabulary entry's softmax probability, averaged over the
+vocabulary. It is not the mutual information above and is on a different
+scale; it too is zero when every pass agrees and grows when they disagree.
+(`tests/test_model.py::test_predict_with_uncertainty_is_the_variance_of_the_softmax_across_passes`
+pins its value on two scripted passes;
+`::test_predict_with_uncertainty_is_zero_when_every_pass_agrees` holds the
+zero; `::test_predict_with_uncertainty_is_higher_off_the_training_stream`
+finds it at least a hundred times higher on tokens the model never saw.)
+
 ### 2 · Experience-Driven Continual Learning
 
 An `ExperienceBuffer` stores past inputs weighted by training loss.
@@ -165,7 +176,7 @@ Two aggregation strategies are available:
 | Strategy | Description | Proved by |
 |---|---|---|
 | `"fedavg"` | Classic FedAvg — weight by dataset size | `tests/test_federated.py::test_fedavg_unequal_weights`, `::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise`, `::test_server_fedavg_round` |
-| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming, by expertise weight rather than by parameter values | `tests/test_federated.py::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise`, `::test_server_expertise_round`; `FederatedConfig.trim_fraction` reaches the aggregator, `::test_server_trim_fraction_reaches_the_aggregator`; the trim drops an inflated-reputation contributor and the worst-loss one, `tests/test_voting.py::test_trim_excludes_inflated_reputation_and_worst_loss`; it does not catch a poisoned update at middling weight, `::test_trim_is_by_weight_not_by_parameter_value` |
+| `"expertise"` | Weight by `reputation / validation_loss`; optional Byzantine-robust tail trimming, by expertise weight rather than by parameter values | `tests/test_federated.py::test_server_weighs_by_dataset_size_under_fedavg_and_by_validation_loss_under_expertise`, `::test_server_expertise_round`; reputation is kept per client when `client_ids` is passed, `::test_server_keeps_each_clients_reputation_by_client_id_across_rounds`; `FederatedConfig.trim_fraction` reaches the aggregator, `::test_server_trim_fraction_reaches_the_aggregator`; the trim drops an inflated-reputation contributor and the worst-loss one, `tests/test_voting.py::test_trim_excludes_inflated_reputation_and_worst_loss`; it does not catch a poisoned update at middling weight, `::test_trim_is_by_weight_not_by_parameter_value` |
 
 ```python
 from foundation_model.federated import FederatedClient, FederatedConfig, FederatedServer
@@ -177,15 +188,25 @@ clients = [FederatedClient(i, config) for i in range(10)]
 
 for fl_round in range(num_rounds):
     global_params = server.get_parameters()
-    updates, val_losses = [], []
+    updates, val_losses, client_ids = [], [], []
     for client in clients:
         client.set_parameters(global_params)
         # Large dataset? sub-sample to 256 representative rows per round
         params, n = client.fit(local_ids, local_labels, max_samples=256)
         updates.append((params, n))
         val_losses.append(evaluate(client))
-    server.aggregate(updates, val_losses=val_losses)
+        client_ids.append(client.client_id)
+    server.aggregate(updates, val_losses=val_losses, client_ids=client_ids)
 ```
+
+Under `"expertise"` the server keeps a reputation per client across rounds.
+Pass `client_ids` so each reputation follows its client whatever the order
+of the list, as when only some clients report in a round; without it the
+list position is the identifier, which is right only when every round lists
+the same clients in the same order
+(`tests/test_federated.py::test_server_keeps_each_clients_reputation_by_client_id_across_rounds`;
+a short or repeated `client_ids` is refused,
+`::test_server_rejects_client_ids_that_do_not_name_each_update_once`).
 
 ### 5 · P2P Gossip Distributed Learning
 

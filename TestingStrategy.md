@@ -3,20 +3,20 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 111 tests across 9 files)
+## The suite (`tests/`, pytest — 117 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
 
 | File | Guards |
 | --- | --- |
-| `test_model.py` | the core model's construction and forward behaviour |
+| `test_model.py` | the core model's construction and forward behaviour, and what `predict_with_uncertainty()` returns: its value on two scripted passes, zero when every pass agrees, and at least a hundred times higher off a narrow training stream |
 | `test_sampling.py` | sampling correctness and determinism controls |
 | `test_uncertainty.py` | the epistemic layer — the decomposition's values at both extremes (identical passes: all aleatoric; confident disagreeing passes: all epistemic, log(S)), and a model trained on a narrow stream being at least ten times as uncertain off it |
 | `test_experience.py` | experience-driven updates, and which seed governs which replay strategy (the generator reproduces stratified; `random.seed` reproduces priority and uniform) |
 | `test_voting.py` | ensemble/voting aggregation, the aggregator repeating from the same base, updates and a fresh tracker, and the cosine penalty end to end (reputation 0.81 / 0.99 after one round, the next aggregate closer to the expert) |
 | `test_trainer.py` | the training loop, and replay keeping a task learned earlier after training on a disjoint one (the catastrophic-forgetting claim) |
-| `test_federated.py` | federated training behaviour, and what the server's global model becomes: the same two updates follow dataset size under FedAvg and validation loss under expertise weighting, and `FederatedConfig.trim_fraction` reaches the aggregator |
+| `test_federated.py` | federated training behaviour, and what the server's global model becomes: the same two updates follow dataset size under FedAvg and validation loss under expertise weighting, and `FederatedConfig.trim_fraction` reaches the aggregator; with `client_ids`, each client keeps its own reputation when the list order changes between rounds |
 | `test_p2p.py` | peer-to-peer coordination, gossip pairing reproducing under `random.seed`, and expertise-weighted gossip keeping one expert's task against seven novices (the dilution claim) |
 | `test_main.py` | the demo entry point `python -m foundation_model` that the Docker targets run — each `DEMO_MODE` in-process on CPU, and `DEVICE=cuda` falling back to CPU |
 
@@ -40,7 +40,11 @@ novice, which is why the network mean gains 4.5x where the expert gains 23.4x
 at 8 peers (worst of 20 seeds). The determinism tests followed on 2026-11-06
 (nine tests); the measured total rose to 98.55%, so the ratchet moved to 98.
 The federated server's two value tests followed on 2026-11-22; they run lines
-already covered, so the total is still 98.55%.
+already covered, so the total is still 98.55%. Later the same day, on Dermot's
+rulings on PR #24, came an optional `client_ids` argument to
+`FederatedServer.aggregate()` with three tests, and three value tests for
+`predict_with_uncertainty()`; 117 tests, total 98.57% (the new
+validation lines in `federated.py` are covered), so the ratchet stays at 98.
 
 ## The coverage ratchet, exactly
 
@@ -129,9 +133,17 @@ that would change with it.
   values and the out-of-distribution, log(S) and non-negativity tests hold
   for `compute_uncertainty()` only, and
   `tests/test_model.py::test_predict_with_uncertainty_shapes` checks shapes,
-  not values.
-- **The federated server knows a client only by its place in the list**
-  (recorded 2026-11-22, no code change). `FederatedServer.aggregate()` takes
+  not values. Since 2026-11-22 the variance measure has value tests of its
+  own in `test_model.py` (Dermot kept both measures and chose tests for the
+  variance one, PR #24): its value on two scripted passes, zero when every
+  pass agrees, and higher off the training stream. The two remain different
+  measures on different scales.
+- ~~The federated server knows a client only by its place in the list~~ —
+  **closed 2026-11-22**: `aggregate()` takes an optional `client_ids`, and
+  `test_server_keeps_each_clients_reputation_by_client_id_across_rounds`
+  holds both cases below (Dermot, option (b) on PR #24). What was recorded,
+  and still holds without it: without
+  `client_ids`, `FederatedServer.aggregate()` takes
   `(state_dict, n_samples)` pairs and uses each pair's index as the
   contributor id, so reputation carries across rounds only when the same
   clients are listed in the same order every round. Listed the other way round
@@ -139,6 +151,13 @@ that would change with it.
   and one penalty apiece) where by client they would be 0.9801 and 0.6561. The
   server tests in `test_federated.py` are one round from fresh reputations
   and do not depend on it.
+- **Nothing tests that `MCDropout` stays on in `eval()`** (recorded
+  2026-11-22, no code change). Both uncertainty functions call `train()`
+  before their passes, so an `MCDropout` that behaved as ordinary dropout
+  would leave every test green;
+  `test_predict_with_uncertainty_is_higher_off_the_training_stream` puts the
+  model in `eval()` first and still passes with either half removed, but not
+  both.
 
 ## Extending
 
