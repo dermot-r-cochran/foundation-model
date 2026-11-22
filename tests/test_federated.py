@@ -10,6 +10,7 @@ from foundation_model.federated import (
     FederatedServer,
     fedavg_aggregate,
 )
+from foundation_model.voting import ReputationTracker
 
 
 @pytest.fixture
@@ -267,3 +268,103 @@ def test_server_trim_fraction_reaches_the_aggregator(
     first_key = next(iter(base))
     shift = (untrimmed[first_key] - base[first_key].float()).mean().item()
     assert shift > 90.0  # weight 1000 against 3 + 0.02: the claimed loss wins
+
+
+# ------------------------------------------------------------------
+# FederatedServer – which client a reputation belongs to (client_ids)
+# ------------------------------------------------------------------
+
+
+def _two_rounds_listed_the_other_way_round(
+    config: FoundationModelConfig, client_ids: list[int] | None
+) -> tuple[ReputationTracker, float]:
+    """Two expertise rounds with the same two clients, listed A, B in round 1
+    and B, A in round 2. A sends base + 1.0 at val_loss 0.1; B sends
+    base - 1.0 at val_loss 5.0. Returns the tracker and round 2's shift of
+    the global model."""
+    tracker = ReputationTracker()
+    server = FederatedServer(
+        config, FederatedConfig(strategy="expertise"), reputation_tracker=tracker
+    )
+    a_id, b_id = 7, 3
+
+    base = server.get_parameters()
+    server.aggregate(
+        [(_shifted(base, 1.0), 10), (_shifted(base, -1.0), 10)],
+        val_losses=[0.1, 5.0],
+        client_ids=None if client_ids is None else [a_id, b_id],
+    )
+
+    base = server.get_parameters()
+    server.aggregate(
+        [(_shifted(base, -1.0), 10), (_shifted(base, 1.0), 10)],
+        val_losses=[5.0, 0.1],
+        client_ids=None if client_ids is None else [b_id, a_id],
+    )
+    first_key = next(iter(base))
+    shift = (server.get_parameters()[first_key] - base[first_key].float()).mean().item()
+    return tracker, shift
+
+
+def test_server_keeps_each_clients_reputation_by_client_id_across_rounds(
+    tiny_config: FoundationModelConfig,
+) -> None:
+    """With client_ids, a client keeps its own reputation whatever its place
+    in the list; without them, the list position is the identifier, as before.
+
+    The tracker's defaults are decay 0.9, boost 1.1 and penalty 0.9, so an
+    update aligned with the round's aggregate multiplies its reputation by
+    0.99 and an opposed one by 0.81. In both rounds A (base + 1.0, loss 0.1)
+    is aligned with the aggregate and B (base - 1.0, loss 5.0) is opposed.
+
+    With client_ids=[7, 3] then [3, 7]: A ends on 0.99 * 0.99 = 0.9801 and B
+    on 0.81 * 0.81 = 0.6561, and round 2 weighs A at 0.99 / 0.1 = 9.9 and B
+    at 0.81 / 5.0 = 0.162, so the global model moves by
+    (9.9 - 0.162) / 10.062 = +0.96780.
+
+    Without client_ids (the default, unchanged): position 0 is A in round 1
+    and B in round 2, so each position ends on 0.99 * 0.81 = 0.8019, and
+    round 2 weighs B with A's reputation (0.99 / 5.0 = 0.198) and A with
+    B's (0.81 / 0.1 = 8.1), a shift of (8.1 - 0.198) / 8.298 = +0.95228.
+
+    Tolerance: the reputations are products of two float64 factors, exact
+    to 1e-12; the shifts are float32 weighted sums of order-1 values, good to
+    about 1e-6, so 1e-4 is still 150 times smaller than the 0.0155 between
+    the two shifts.
+
+    It turns red if the server stops passing client_ids to the reputation
+    tracker, or if the default stops being the list position.
+    """
+    tracker, shift = _two_rounds_listed_the_other_way_round(tiny_config, [7, 3])
+    assert tracker.get_stats(7).reputation == pytest.approx(0.9801, abs=1e-12)
+    assert tracker.get_stats(3).reputation == pytest.approx(0.6561, abs=1e-12)
+    assert tracker.get_stats(0) is None and tracker.get_stats(1) is None
+    assert shift == pytest.approx((9.9 - 0.162) / 10.062, abs=1e-4)
+
+    tracker, shift = _two_rounds_listed_the_other_way_round(tiny_config, None)
+    assert tracker.get_stats(0).reputation == pytest.approx(0.8019, abs=1e-12)
+    assert tracker.get_stats(1).reputation == pytest.approx(0.8019, abs=1e-12)
+    assert shift == pytest.approx((8.1 - 0.198) / 8.298, abs=1e-4)
+
+
+@pytest.mark.parametrize(
+    "client_ids, message",
+    [([7], "1 entries for 2 client updates"), ([7, 7], "repeats an identifier")],
+)
+def test_server_rejects_client_ids_that_do_not_name_each_update_once(
+    tiny_config: FoundationModelConfig, client_ids: list[int], message: str
+) -> None:
+    """client_ids must give one distinct id per update; a short list or a
+    repeated id would file two clients' reputations under one key. The global
+    model is left as it was."""
+    server = FederatedServer(tiny_config, FederatedConfig(strategy="expertise"))
+    base = server.get_parameters()
+    with pytest.raises(ValueError, match=message):
+        server.aggregate(
+            [(_shifted(base, 1.0), 10), (_shifted(base, -1.0), 10)],
+            val_losses=[0.1, 5.0],
+            client_ids=client_ids,
+        )
+    assert server.round == 0
+    after = server.get_parameters()
+    assert all(torch.equal(after[k], v) for k, v in base.items())
