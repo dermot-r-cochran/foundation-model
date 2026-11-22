@@ -3,8 +3,8 @@ name: CI
 # Runs the suite on every pull request and push to main. torch is the one
 # heavy dependency; the CPU wheel from PyTorch's own index keeps the install
 # to what the tests need (no CUDA stack), and pip caching keeps repeat runs
-# fast. Single Python version deliberately - the matrix cost is dominated by
-# torch, and 3.12 is the version the suite is developed against.
+# fast. Two Python versions, the declared floor and current stable; each pays
+# the torch install.
 
 on:
   pull_request:

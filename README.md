@@ -264,7 +264,7 @@ or, in that project's `pyproject.toml`:
 dependencies = ["foundation-model @ git+https://github.com/dermot-r-cochran/foundation-model@v0.1.0"]
 ```
 
-The tag shown is an example: no release is tagged yet, so until one is, put a commit SHA in place of `v0.1.0`.
+`v0.1.0` was tagged on 18 November 2026. To depend on a commit after it, put the commit SHA in place of the tag.
 
 ---
 
