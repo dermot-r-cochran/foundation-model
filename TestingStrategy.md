@@ -3,7 +3,7 @@
 How this repository is tested, what each suite guards, and the honest state
 of enforcement.
 
-## The suite (`tests/`, pytest — 117 tests across 9 files)
+## The suite (`tests/`, pytest — 119 tests across 9 files)
 
 The test files map one-to-one onto the model's architectural claims, so the
 suite doubles as a checklist of what the README promises:
@@ -45,6 +45,9 @@ rulings on PR #24, came an optional `client_ids` argument to
 `FederatedServer.aggregate()` with three tests, and three value tests for
 `predict_with_uncertainty()`; 117 tests, total 98.57% (the new
 validation lines in `federated.py` are covered), so the ratchet stays at 98.
+On 2026-11-23 two tests closed the `MCDropout` gap below
+(`test_model.py::test_mcdropout_stays_on_in_eval`,
+`::test_model_forward_passes_differ_in_eval`); 119 tests, no new lines run.
 
 ## The coverage ratchet, exactly
 
@@ -151,8 +154,11 @@ that would change with it.
   and one penalty apiece) where by client they would be 0.9801 and 0.6561. The
   server tests in `test_federated.py` are one round from fresh reputations
   and do not depend on it.
-- **Nothing tests that `MCDropout` stays on in `eval()`** (recorded
-  2026-11-22, no code change). Both uncertainty functions call `train()`
+- ~~Nothing tests that `MCDropout` stays on in `eval()`~~ — **closed
+  2026-11-23**: `test_model.py::test_mcdropout_stays_on_in_eval` and
+  `::test_model_forward_passes_differ_in_eval`; an `MCDropout` made
+  ordinary dropout turns both red. What was recorded (2026-11-22, no code
+  change): Both uncertainty functions call `train()`
   before their passes, so an `MCDropout` that behaved as ordinary dropout
   would leave every test green;
   `test_predict_with_uncertainty_is_higher_off_the_training_stream` puts the
