@@ -34,6 +34,49 @@ def test_predict_with_uncertainty_shapes(tiny_model: FoundationModel, tiny_confi
     assert (uncertainty >= 0).all()
 
 
+def test_mcdropout_stays_on_in_eval() -> None:
+    """MCDropout drops in eval(), where ordinary dropout is the identity.
+
+    With p = 0.5 on 10,000 ones, every output is 0 or 2 (the 1 / (1 - p)
+    rescale) and on seed 0 the dropped share is within 0.05 of a half; the
+    same input through plain nn.Dropout in eval() comes back unchanged.
+    This is the half that
+    test_predict_with_uncertainty_is_higher_off_the_training_stream cannot
+    separate from predict_with_uncertainty's own train() call.
+    """
+    from foundation_model.model import MCDropout
+
+    torch.manual_seed(0)
+    x = torch.ones(10_000)
+    mc = MCDropout(0.5).eval()
+    plain = torch.nn.Dropout(0.5).eval()
+
+    out = mc(x)
+    assert not mc.training
+    assert set(out.unique().tolist()) == {0.0, 2.0}
+    assert abs((out == 0).float().mean().item() - 0.5) < 0.05
+    assert torch.equal(plain(x), x)
+
+
+def test_model_forward_passes_differ_in_eval(
+    tiny_model: FoundationModel, tiny_config: FoundationModelConfig
+) -> None:
+    """In eval() and without train(), two forward passes still differ.
+
+    The model-level claim the README makes: every dropout in the model is
+    an MCDropout, so a caller who puts the model in eval() still gets
+    stochastic passes. With ordinary dropout the two passes would be equal.
+    """
+    torch.manual_seed(0)
+    ids = torch.randint(0, tiny_config.vocab_size, (2, 8))
+    tiny_model.eval()
+    with torch.no_grad():
+        first = tiny_model(ids)
+        second = tiny_model(ids)
+    assert not tiny_model.training
+    assert not torch.equal(first, second)
+
+
 def test_n_parameters_positive(tiny_model: FoundationModel) -> None:
     assert tiny_model.n_parameters > 0
 
@@ -124,8 +167,8 @@ def test_predict_with_uncertainty_is_higher_off_the_training_stream() -> None:
     tokens 16..255 are never seen. The model is put in eval() before the
     call, as a caller would; the passes still differ, but this test cannot
     say whether that is MCDropout or predict_with_uncertainty's own train()
-    call, since either alone keeps dropout on (MCDropout in eval() is a
-    Known gap in TestingStrategy.md).
+    call, since either alone keeps dropout on (MCDropout in eval() is held
+    on its own by test_mcdropout_stays_on_in_eval).
 
     Across 20 seeds on 2026-11-22 the ratio out/in of this variance measure
     was never below 4,672 (median about 6,000). The factor of 100 asserted

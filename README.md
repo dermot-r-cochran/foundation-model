@@ -47,7 +47,9 @@ Input tokens ──► Token + Position Embeddings (MC-Dropout)
 The transformer uses **weight-tied** input and output embeddings. All
 `Dropout` modules are replaced by `MCDropout`, which stays active at
 inference time so that multiple stochastic forward passes can be used to
-estimate uncertainty.
+estimate uncertainty
+(`tests/test_model.py::test_mcdropout_stays_on_in_eval`,
+`::test_model_forward_passes_differ_in_eval`).
 
 ---
 
